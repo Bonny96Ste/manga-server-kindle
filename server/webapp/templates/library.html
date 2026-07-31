@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Library · Manga Library{% endblock %}
+{% block content %}
+<section class="dashboard-hero">
+  <div class="hero-copy">
+    <span class="eyebrow">Personal manga server</span>
+    <h1>Your library, downloads, and reading progress in one place.</h1>
+    <p>Discover series, keep PDFs current, and continue exactly where you left off.</p>
+    <form class="search-bar" method="get" action="{{ url_for('library_home') }}">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search your library or discover a series" autocomplete="off">
+      <input type="hidden" name="sort" value="{{ sort }}">
+      <button type="submit">Search</button>
+    </form>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card"><span>Series</span><strong>{{ stats.series }}</strong></div>
+    <div class="stat-card"><span>PDF chapters</span><strong>{{ stats.pdfs }}</strong></div>
+    <div class="stat-card"><span>Unread</span><strong>{{ stats.unread }}</strong></div>
+    <div class="stat-card"><span>Storage</span><strong>{{ format_bytes(stats.bytes) }}</strong></div>
+    <div class="stat-card"><span>Monitored</span><strong>{{ stats.watched }}</strong></div>
+  </div>
+</section>
+
+{% if results %}
+<section class="section-block">
+  <div class="section-heading"><div><span class="eyebrow">Discovery</span><h2>Search results</h2></div><span class="count-pill">{{ results|length }}</span></div>
+  <div class="discover-grid">
+    {% for item in results %}
+      <article class="discover-card">
+        <div class="cover-frame">{% if item.meta_cover %}<img src="{{ item.meta_cover }}" alt="cover" loading="lazy">{% else %}<div class="cover-placeholder">No cover</div>{% endif %}</div>
+        <div class="discover-copy">
+          <div class="card-title-row"><h3>{{ item.meta_title or item.title }}</h3>{% if item.meta_status %}<span class="badge">{{ item.meta_status|replace('_',' ')|title }}</span>{% endif %}</div>
+          <p class="muted">{{ item.title }}</p>
+          {% if item.meta_description %}<p class="description clamp-4">{{ item.meta_description }}</p>{% endif %}
+          <div class="fact-row"><span>Chapters <strong>{{ item.meta_chapters if item.meta_chapters is not none else '—' }}</strong></span><span>Score <strong>{{ item.meta_score if item.meta_score is not none else '—' }}</strong></span></div>
+          {% if item.meta_genres %}<div class="chips">{% for genre in item.meta_genres[:4] %}<span>{{ genre }}</span>{% endfor %}</div>{% endif %}
+          {% if item.already_added %}
+            <a class="button" href="{{ url_for('series_view', series_path=item.existing_path) }}">Open in library</a>
+          {% else %}
+            <form method="post" action="{{ url_for('library_add') }}">
+              <input type="hidden" name="title" value="{{ item.title }}"><input type="hidden" name="series_id" value="{{ item.series_id }}"><input type="hidden" name="slug" value="{{ item.slug }}"><input type="hidden" name="url" value="{{ item.url }}"><input type="hidden" name="anilist_id" value="{{ item.anilist_id or '' }}">
+              <button type="submit">Add to library</button>
+            </form>
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% elif q %}<section class="empty-state"><h2>No search matches</h2><p>Try another title or spelling.</p></section>{% endif %}
+
+<div class="dashboard-layout">
+  <section class="section-block dashboard-main">
+    <div class="section-heading library-toolbar">
+      <div><span class="eyebrow">Collection</span><h2>Library</h2></div>
+      <form method="get" class="sort-form">
+        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+        <label>Sort<select name="sort" onchange="this.form.submit()"><option value="activity" {% if sort=='activity' %}selected{% endif %}>Recent activity</option><option value="unread" {% if sort=='unread' %}selected{% endif %}>Unread</option><option value="latest" {% if sort=='latest' %}selected{% endif %}>Latest chapter</option><option value="title" {% if sort=='title' %}selected{% endif %}>Title</option></select></label>
+      </form>
+    </div>
+    {% if library %}
+      <div class="library-grid ultimate-grid">
+        {% for series in library %}
+          <article class="library-card enhanced {% if series.pinned %}is-pinned{% endif %}">
+            <a class="library-cover" href="{{ url_for('series_view', series_path=series.path) }}">{% if series.cover %}<img src="{{ series.cover }}" alt="cover" loading="lazy">{% else %}<div class="cover-placeholder">{{ series.title[:1] }}</div>{% endif %}{% if series.watch.enabled %}<span class="watch-dot"></span>{% endif %}</a>
+            <div class="library-copy">
+              <div class="card-title-row"><h3><a href="{{ url_for('series_view', series_path=series.path) }}">{{ series.title }}</a></h3><form method="post" action="{{ url_for('series_pin', series_path=series.path) }}"><button class="icon-button pin-button" type="submit" title="{{ 'Unpin' if series.pinned else 'Pin' }}">{{ '★' if series.pinned else '☆' }}</button></form></div>
+              <div class="progress-summary"><div class="progress-track"><span style="width: {{ (series.read_count / series.downloaded_count * 100) if series.downloaded_count else 0 }}%"></span></div><small>{{ series.read_count }} read · {{ series.unread_count }} unread · {{ series.missing_count }} missing</small></div>
+              <div class="library-stats"><span><strong>{{ series.downloaded_count }}</strong> PDFs</span><span><strong>{{ format_bytes(series.downloaded_size) }}</strong></span>{% if series.remote_latest is not none %}<span>Latest <strong>{{ series.remote_latest }}</strong></span>{% endif %}</div>
+              <div class="card-actions">
+                {% if series.continue_chapter is not none %}<a class="button" href="{{ url_for('chapter_read', series_path=series.path, chapter_id=chapter_key(series.continue_chapter)) }}">Continue ch. {{ series.continue_chapter }}</a>{% else %}<a class="button" href="{{ url_for('series_view', series_path=series.path) }}">Open series</a>{% endif %}
+                <a class="button secondary" href="{{ url_for('series_view', series_path=series.path) }}">Manage</a>
+                <button class="button danger ghost" type="button" data-dialog="remove-{{ loop.index }}">Remove</button>
+              </div>
+            </div>
+          </article>
+          <dialog id="remove-{{ loop.index }}" class="confirm-dialog"><form method="dialog" class="dialog-close-row"><button class="icon-button">×</button></form><h2>Remove {{ series.title }}?</h2><p>Archive keeps the PDF files and lets you restore the series later.</p><div class="dialog-actions"><form method="post" action="{{ url_for('series_remove', series_path=series.path) }}"><input type="hidden" name="action" value="keep"><button class="button secondary">Archive and keep files</button></form><form method="post" action="{{ url_for('series_remove', series_path=series.path) }}"><input type="hidden" name="action" value="delete"><button class="button danger">Delete everything</button></form></div></dialog>
+        {% endfor %}
+      </div>
+    {% else %}<div class="empty-state"><h2>No visible series</h2><p>Add a title above or check the Archive.</p></div>{% endif %}
+  </section>
+
+  <aside class="section-block activity-rail">
+    <div class="section-heading"><div><span class="eyebrow">Updates</span><h2>Recent activity</h2></div><a class="text-link" href="{{ url_for('activity_view') }}">View all</a></div>
+    <div class="event-list">
+      {% for event in events %}<article class="event-item"><span class="event-dot {{ event.type }}"></span><div><strong>{{ event.title }}</strong>{% if event.detail %}<p>{{ event.detail }}</p>{% endif %}<small>{{ event.created_at }}</small></div></article>{% else %}<p class="muted">Activity will appear here as you add, read, and download series.</p>{% endfor %}
+    </div>
+    <div class="rail-actions"><a class="button secondary" href="{{ url_for('archive_view') }}">Open Archive</a><a class="button secondary" href="{{ url_for('library_export') }}">Export library JSON</a></div>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script>document.querySelectorAll('[data-dialog]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.dialog).showModal()));</script>{% endblock %}

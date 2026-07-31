@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block title %}{{ series.title }} · Chapter {{ chapter_num }}{% endblock %}
+{% block page_class %}reader-page-shell{% endblock %}
+{% block content %}
+<section class="reader-header">
+  <div><a class="back-link" href="{{ series_url }}">← {{ series.title }}</a><h1>Chapter {{ chapter_num }}</h1></div>
+  <div class="reader-header-actions"><span class="badge">PDF</span>{% if current_row.read %}<span class="badge read-badge" id="read-state-badge">Read</span>{% elif current_downloaded %}<span class="badge success" id="read-state-badge">Unread</span>{% endif %}</div>
+</section>
+
+<section class="reader-stage" id="reader-stage">
+  {% if mode == 'missing' %}
+    <div class="reader-message" id="download-panel"><span class="large-icon">↓</span><h2>Chapter {{ chapter_num }} is not downloaded</h2><p>Start the PDF download here. The reader will replace this screen with the chapter as soon as the file is ready.</p><form id="reader-download-form" method="post" action="{{ download_url }}"><button type="submit">Download and open</button></form><div class="download-progress" id="download-progress" hidden><div class="progress-track"><span id="progress-bar"></span></div><p id="progress-message">Starting…</p></div></div>
+  {% elif mode == 'error' %}
+    <div class="reader-message error-state"><h2>The PDF could not be rendered</h2><p>{{ reader_error }}</p><form method="post" action="{{ download_url }}"><button>Download a fresh copy</button></form></div>
+  {% else %}
+    <div class="reader-tools" id="reader-tools">
+      <button class="tool-button" type="button" id="mode-toggle" title="Toggle long strip / paged mode">▤</button>
+      <button class="tool-button" type="button" id="width-down" title="Narrower pages">−</button>
+      <button class="tool-button" type="button" id="width-up" title="Wider pages">＋</button>
+      <button class="tool-button" type="button" id="fullscreen-toggle" title="Fullscreen">⛶</button>
+      <button class="tool-button" type="button" id="top-button" title="Back to top">↑</button>
+    </div>
+    <div class="pdf-pages" id="pdf-pages" data-page-count="{{ page_count }}">
+      {% for page_index in range(page_count) %}
+        <figure class="pdf-page" data-page="{{ page_index }}" id="page-{{ page_index + 1 }}"><img src="{{ url_for('chapter_page', series_path=series.path, chapter_id=current_key, page_index=page_index) }}" alt="Chapter {{ chapter_num }}, page {{ page_index + 1 }}" loading="{{ 'eager' if page_index < 2 else 'lazy' }}"><figcaption>{{ page_index + 1 }} / {{ page_count }}</figcaption></figure>
+      {% endfor %}
+    </div>
+    <div class="paged-controls" id="paged-controls" hidden><button type="button" id="page-prev">← Page</button><span id="page-counter">1 / {{ page_count }}</span><button type="button" id="page-next">Page →</button></div>
+  {% endif %}
+</section>
+
+<nav class="reader-controls" aria-label="Reader controls">
+  <a class="reader-nav {% if not prev_url %}disabled{% endif %}" href="{{ prev_url or '#' }}" aria-disabled="{{ 'true' if not prev_url else 'false' }}">← <span>Previous</span></a>
+  <label class="chapter-picker"><span>Chapter</span><select onchange="if(this.value) location.href=this.value">{% for option in chapter_options %}<option value="{{ url_for('chapter_read', series_path=series.path, chapter_id=option.key) }}" {% if option.key == current_key %}selected{% endif %}>{{ option.number }}{% if option.read %} · read{% elif not option.downloaded %} · download{% endif %}</option>{% endfor %}</select></label>
+  {% if current_downloaded %}<button class="reader-complete {% if current_row.read %}is-read{% endif %}" id="mark-read" type="button">{{ 'Mark unread' if current_row.read else 'Mark read' }}</button>{% endif %}
+  <a class="reader-nav {% if not next_url %}disabled{% endif %}" href="{{ next_url or '#' }}" aria-disabled="{{ 'true' if not next_url else 'false' }}"><span>Next</span> →</a>
+</nav>
+{% endblock %}
+{% block scripts %}
+<script>
+const downloadForm = document.getElementById('reader-download-form');
+if (downloadForm) {
+  downloadForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = downloadForm.querySelector('button');
+    const progress = document.getElementById('download-progress');
+    const message = document.getElementById('progress-message');
+    const bar = document.getElementById('progress-bar');
+    button.disabled = true; progress.hidden = false;
+    try {
+      const response = await fetch(downloadForm.action, {method:'POST', body:new FormData(downloadForm), headers:{'Accept':'application/json','X-Requested-With':'fetch'}});
+      if (!response.ok) throw new Error('Could not start the download');
+      const job = await response.json();
+      const poll = async () => {
+        const status = await (await fetch(job.status_url)).json();
+        message.textContent = status.error || status.message || 'Downloading…';
+        if (status.progress_total > 0) bar.style.width = `${Math.min(100, status.progress_current / status.progress_total * 100)}%`;
+        if (status.status === 'done') { bar.style.width='100%'; message.textContent='Ready. Opening…'; location.replace(status.reader_url || job.reader_url); return; }
+        if (status.status === 'error') { button.disabled=false; return; }
+        setTimeout(poll, 1000);
+      };
+      poll();
+    } catch (error) { message.textContent=error.message; button.disabled=false; }
+  });
+}
+
+const progressUrl = {{ progress_url|tojson }};
+const chapterNum = {{ chapter_num|tojson }};
+const prevChapter = {{ prev_url|tojson }};
+const nextChapter = {{ next_url|tojson }};
+async function saveProgress(action) {
+  return fetch(progressUrl, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({chapter_num:chapterNum, action})});
+}
+{% if current_downloaded %}saveProgress('open');{% endif %}
+
+const pagesContainer = document.getElementById('pdf-pages');
+if (pagesContainer) {
+  const pages = [...pagesContainer.querySelectorAll('.pdf-page')];
+  const lastPage = pages.at(-1);
+  let completedSent = {{ current_row.read|tojson }};
+  if (lastPage) new IntersectionObserver((entries) => {
+    if (!completedSent && entries[0].isIntersecting && entries[0].intersectionRatio > .55) {
+      completedSent = true; saveProgress('complete');
+      const badge=document.getElementById('read-state-badge'); if(badge){badge.textContent='Read'; badge.className='badge read-badge';}
+      const mark=document.getElementById('mark-read'); if(mark){mark.textContent='Mark unread'; mark.classList.add('is-read');}
+    }
+  }, {threshold:[.55]}).observe(lastPage);
+
+  let mode = localStorage.getItem('mangadl-reader-mode') || 'strip';
+  let width = Number(localStorage.getItem('mangadl-reader-width') || 1000);
+  let currentPage = 0;
+  const pagedControls = document.getElementById('paged-controls');
+  const counter = document.getElementById('page-counter');
+  function applyWidth(){ document.documentElement.style.setProperty('--reader-page-width', `${Math.max(520, Math.min(1500, width))}px`); localStorage.setItem('mangadl-reader-width', width); }
+  function showPage(index){ currentPage=Math.max(0,Math.min(pages.length-1,index)); pages.forEach((page,i)=>page.hidden=i!==currentPage); counter.textContent=`${currentPage+1} / ${pages.length}`; window.scrollTo({top:0,behavior:'smooth'}); }
+  function applyMode(){ pagesContainer.dataset.mode=mode; pagedControls.hidden=mode!=='paged'; document.getElementById('mode-toggle').textContent=mode==='paged'?'▣':'▤'; if(mode==='paged') showPage(currentPage); else pages.forEach(page=>page.hidden=false); localStorage.setItem('mangadl-reader-mode',mode); }
+  applyWidth(); applyMode();
+  document.getElementById('mode-toggle').addEventListener('click',()=>{mode=mode==='strip'?'paged':'strip'; applyMode();});
+  document.getElementById('width-down').addEventListener('click',()=>{width-=100;applyWidth();});
+  document.getElementById('width-up').addEventListener('click',()=>{width+=100;applyWidth();});
+  document.getElementById('page-prev').addEventListener('click',()=>showPage(currentPage-1));
+  document.getElementById('page-next').addEventListener('click',()=>showPage(currentPage+1));
+  document.getElementById('fullscreen-toggle').addEventListener('click',()=>document.fullscreenElement?document.exitFullscreen():document.getElementById('reader-stage').requestFullscreen());
+  document.getElementById('top-button').addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+  document.addEventListener('keydown',(event)=>{
+    if(event.target.matches('input,select,textarea')) return;
+    if(event.key==='f') document.getElementById('fullscreen-toggle').click();
+    if(event.key==='m') document.getElementById('mode-toggle').click();
+    if(event.key==='[' && prevChapter) location.href=prevChapter;
+    if(event.key===']' && nextChapter) location.href=nextChapter;
+    if(mode==='paged' && event.key==='ArrowLeft') showPage(currentPage-1);
+    else if(mode==='paged' && event.key==='ArrowRight') showPage(currentPage+1);
+    else if(event.key==='j') window.scrollBy({top:window.innerHeight*.8,behavior:'smooth'});
+    else if(event.key==='k') window.scrollBy({top:-window.innerHeight*.8,behavior:'smooth'});
+  });
+}
+
+const markRead = document.getElementById('mark-read');
+if (markRead) markRead.addEventListener('click', async () => {
+  const isRead = markRead.classList.contains('is-read');
+  await saveProgress(isRead ? 'unread' : 'complete');
+  markRead.classList.toggle('is-read');
+  markRead.textContent = isRead ? 'Mark read' : 'Mark unread';
+  const badge=document.getElementById('read-state-badge'); if(badge){badge.textContent=isRead?'Unread':'Read';badge.className=isRead?'badge success':'badge read-badge';}
+});
+</script>
+{% endblock %}

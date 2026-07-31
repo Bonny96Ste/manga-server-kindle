@@ -1,0 +1,31 @@
+services:
+  mangabridge:
+    image: python:3.12-slim-bookworm
+    container_name: mangabridge-server
+    working_dir: /stack
+    command: ["/bin/sh", "/stack/startup.sh"]
+    environment:
+      PYTHONUNBUFFERED: "1"
+      STACK_DIR: /stack
+      DATA_DIR: /stack/data
+      LIBRARY_DIR: /stack/data/library
+      DOWNLOAD_DIR: /stack/data/downloads
+      STATE_DIR: /stack/data/state
+      PORT: "${MANGADL_PORT:-8095}"
+      HOST: 0.0.0.0
+      WATCH_SCAN_SECONDS: "${WATCH_SCAN_SECONDS:-300}"
+      PDF_RENDER_SCALE: "${PDF_RENDER_SCALE:-1.6}"
+      SECRET_KEY: "${MANGADL_SECRET_KEY:-replace-with-a-long-random-value}"
+      APP_USERNAME: "${MANGADL_USERNAME:-}"
+      APP_PASSWORD: "${MANGADL_PASSWORD:-}"
+      KINDLE_API_TOKEN: "${KINDLE_API_TOKEN:-}"
+      KINDLE_PDF_MODE: "${KINDLE_PDF_MODE:-original}"
+      KINDLE_RENDER_WIDTH: "${KINDLE_RENDER_WIDTH:-1200}"
+      KINDLE_RENDER_MAX_HEIGHT: "${KINDLE_RENDER_MAX_HEIGHT:-1600}"
+      KINDLE_JPEG_QUALITY: "${KINDLE_JPEG_QUALITY:-86}"
+      KINDLE_CACHE_MAX_MB: "${KINDLE_CACHE_MAX_MB:-2048}"
+    ports:
+      - "${MANGADL_PORT:-8095}:${MANGADL_PORT:-8095}"
+    volumes:
+      - "${MANGADL_STACK_PATH:-/opt/portainer/mangabridge/server}:/stack"
+    restart: unless-stopped

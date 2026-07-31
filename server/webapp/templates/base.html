@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>{% block title %}Manga Library{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('library_home') }}"><span class="brand-mark">M</span><span>Manga Library</span></a>
+    <nav class="main-nav">
+      <a href="{{ url_for('library_home') }}">Library</a>
+      <a href="{{ url_for('activity_view') }}">Activity</a>
+      <a href="{{ url_for('archive_view') }}">Archive</a>
+      <button type="button" class="icon-button theme-button" id="theme-toggle" title="Toggle theme">◐</button>
+    </nav>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}<div class="flash-stack">{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
+  {% endwith %}
+
+  <main class="page {% block page_class %}{% endblock %}">{% block content %}{% endblock %}</main>
+  <script>
+    const root = document.documentElement;
+    const savedTheme = localStorage.getItem('mangadl-theme') || 'dark';
+    root.dataset.theme = savedTheme;
+    document.getElementById('theme-toggle')?.addEventListener('click', () => {
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('mangadl-theme', root.dataset.theme);
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

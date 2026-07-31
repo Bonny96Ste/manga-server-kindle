@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Activity · Manga Library{% endblock %}
+{% block content %}
+<section class="page-heading"><div><span class="eyebrow">Operations</span><h1>Activity</h1><p>Persistent download history and application events.</p></div></section>
+<div class="two-column activity-columns">
+  <section class="panel"><div class="section-heading"><h2>Download jobs</h2><span class="count-pill">{{ jobs|length }}</span></div><div class="job-list">{% for job in jobs %}<article class="job-row"><div><strong>{{ job.title }}</strong><p>{{ job.error or job.message or job.status }}</p><small>{{ job.created_at }}</small></div><span class="badge {% if job.status=='done' %}success{% endif %}">{{ job.status }}</span>{% if job.series_path %}<a class="button secondary" href="{{ url_for('series_view', series_path=job.series_path) }}">Series</a>{% endif %}</article>{% else %}<p class="muted">No jobs have run yet.</p>{% endfor %}</div></section>
+  <section class="panel"><div class="section-heading"><h2>Event log</h2><span class="count-pill">{{ events|length }}</span></div><div class="event-list">{% for event in events %}<article class="event-item"><span class="event-dot {{ event.type }}"></span><div><strong>{{ event.title }}</strong>{% if event.detail %}<p>{{ event.detail }}</p>{% endif %}<small>{{ event.created_at }}</small></div></article>{% else %}<p class="muted">No events yet.</p>{% endfor %}</div></section>
+</div>
+{% endblock %}
