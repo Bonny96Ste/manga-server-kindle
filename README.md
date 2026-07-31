@@ -1,3 +1,7 @@
+## Disclaimer
+The entirety of this project (with the important exception of the backend manga downloader) was vibecoded with ChatGPT. I am not a developer, I barely understand the very basics of python, so this is all quite beyond me. The whole project was born by a desire to read manga on an old kindle I had laying around, but I couldn't find any ready-made solutions online, so I decided to test how far the vibes would get me. Quite far turns out. Scary (this literally took no more than 2 days on and off). But the current version is definitely usable, and might be of interest to other people.
+Feel free to point out bugs and feature suggestions, or even fork your own for other devices!
+
 # MangaBridge
 
 MangaBridge is a self-hosted manga library, downloader, browser reader, and lightweight offline Kindle client.
