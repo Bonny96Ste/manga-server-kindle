@@ -6,6 +6,14 @@ The server runs from a bind-mounted folder using Docker Compose or Portainer. It
 
 > **Current working versions:** server `1.0.2`, Kindle client `1.0.5`.
 
+## mangadl-cli
+The server downloader was inspired by and adapted from the workflow of aydinAGF/mangadl-cli, distributed under the MIT License.
+
+MIT License
+Copyright (c) 2026 aydin
+
+The full upstream license is available at https://github.com/aydinAGF/mangadl-cli/blob/main/LICENSE.
+
 ## Features
 
 ### Web library
