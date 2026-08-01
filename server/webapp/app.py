@@ -22,7 +22,7 @@ from PIL import Image
 from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, send_file, url_for
 
 from anilist import best_title, fetch as anilist_fetch, safe_text, search as anilist_search
-from manga import download_series, filter_chapters, get_all_chapters, sanitize_filename, search_manga
+from manga import CHAPTER_PARSER_VERSION, download_series, filter_chapters, get_all_chapters, sanitize_filename, search_manga
 
 BASE_DIR = Path(os.environ.get("STACK_DIR", "/stack")).resolve()
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data"))).resolve()
@@ -338,16 +338,30 @@ def remote_chapters(series_id: str, force: bool = False, max_age_seconds: int = 
     cache_path = chapter_cache_path(series_id)
     cached = read_json(cache_path, {})
     fetched_at = parse_iso(cached.get("fetched_at"))
-    if not force and fetched_at and datetime.now(timezone.utc) - fetched_at < timedelta(seconds=max_age_seconds):
-        rows = cached.get("chapters") or []
-        return [(float(row[0]), str(row[1])) for row in rows if isinstance(row, list) and len(row) == 2]
+    cached_rows = cached.get("chapters") or []
+    cache_is_current = cached.get("parser_version") == CHAPTER_PARSER_VERSION
+    if (
+        not force
+        and cache_is_current
+        and cached_rows
+        and fetched_at
+        and datetime.now(timezone.utc) - fetched_at < timedelta(seconds=max_age_seconds)
+    ):
+        return [(float(row[0]), str(row[1])) for row in cached_rows if isinstance(row, list) and len(row) == 2]
     try:
         rows = get_all_chapters(series_id)
-        atomic_write_json(cache_path, {"fetched_at": now_iso(), "chapters": [[number, url] for number, url in rows]})
+        atomic_write_json(
+            cache_path,
+            {
+                "fetched_at": now_iso(),
+                "parser_version": CHAPTER_PARSER_VERSION,
+                "chapters": [[number, url] for number, url in rows],
+            },
+        )
         return rows
-    except Exception:
-        rows = cached.get("chapters") or []
-        return [(float(row[0]), str(row[1])) for row in rows if isinstance(row, list) and len(row) == 2]
+    except Exception as exc:
+        app.logger.warning("Chapter refresh failed for %s: %s", series_id, exc)
+        return [(float(row[0]), str(row[1])) for row in cached_rows if isinstance(row, list) and len(row) == 2]
 
 
 def default_watch() -> Dict[str, Any]:
@@ -1618,7 +1632,7 @@ def kindle_ping():
             "ok": True,
             "api_version": 1,
             "server": "MangaDL Ultimate",
-            "bridge_version": "1.0.2",
+            "bridge_version": "1.0.3",
             "kindle_profile": {
                 "pdf_mode": KINDLE_PDF_MODE,
                 "width": KINDLE_RENDER_WIDTH,
