@@ -4,7 +4,8 @@ Feel free to point out bugs and feature suggestions, or even fork your own for o
 
 # MangaBridge
 ![MangaBridge server mainscreen](docs/screenshots/mainscreen.png)
-MangaBridge is a self-hosted manga library, downloader, browser reader, and lightweight offline Kindle client.
+
+MangaBridge is a self-hosted web app that functions as a manga library, downloader and browser reader. It is effectively a web GUI for the excellent [aydinAGF/mangadl-cli](url). On top of that there is also a lightweight plugin for jailbroken amazon kindles (only tested for 4.1.4) that communicates with the server to retrieve chapters to read.
 
 The server runs from a bind-mounted folder using Docker Compose or Portainer. It manages a PDF-only library, retrieves AniList metadata, discovers chapters, downloads selected ranges, monitors series for new releases, and exposes a compact API for older Kindles. The Kindle client is a KOReader plugin launched through KUAL and designed around the physical controls and limited resources of the Kindle 4 Non-Touch.
 
