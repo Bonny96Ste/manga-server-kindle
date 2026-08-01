@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -17,6 +19,89 @@ DEFAULT_HEADERS = {
     "Referer": BASE_URL + "/",
 }
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+CHAPTER_PARSER_VERSION = 3
+LOGGER = logging.getLogger(__name__)
+
+
+class MangaSourceError(RuntimeError):
+    """Raised when the upstream site responds but cannot be parsed safely."""
+
+
+class _ChapterLinkParser(HTMLParser):
+    """Collect chapter anchors without depending on WeebCentral CSS classes."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._active_href: Optional[str] = None
+        self._text_parts: List[str] = []
+        self.links: List[Tuple[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag.lower() != "a" or self._active_href is not None:
+            return
+        attr_map = {str(key).lower(): value for key, value in attrs if key}
+        href = str(attr_map.get("href") or "").strip()
+        if not href:
+            return
+        path = urllib.parse.urlparse(urllib.parse.urljoin(BASE_URL, href)).path
+        if not path.startswith("/chapters/"):
+            return
+        self._active_href = href
+        self._text_parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self._active_href is not None and data:
+            self._text_parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != "a" or self._active_href is None:
+            return
+        text = " ".join(" ".join(self._text_parts).split())
+        self.links.append((self._active_href, text))
+        self._active_href = None
+        self._text_parts = []
+
+
+class _ImageLinkParser(HTMLParser):
+    """Collect image candidates from current and legacy reader markup."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.urls: List[str] = []
+
+    def _append(self, value: Optional[str]) -> None:
+        value = str(value or "").strip()
+        if not value:
+            return
+        # srcset may contain multiple candidates with width descriptors.
+        for candidate in value.split(","):
+            url = candidate.strip().split()[0] if candidate.strip() else ""
+            if url:
+                self.urls.append(url)
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag.lower() not in {"img", "source"}:
+            return
+        attr_map = {str(key).lower(): value for key, value in attrs if key}
+        for name in ("src", "data-src", "data-original", "srcset", "data-srcset"):
+            self._append(attr_map.get(name))
+
+
+def _chapter_number(text: str) -> Optional[float]:
+    normalized = " ".join((text or "").split())
+    patterns = (
+        r"(?:chapter|chap(?:ter)?|ch\.?|episode|ep\.?)\s*#?\s*([0-9]+(?:\.[0-9]+)?)",
+        r"#\s*([0-9]+(?:\.[0-9]+)?)",
+        r"([0-9]+(?:\.[0-9]+)?)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, normalized, re.IGNORECASE)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                pass
+    return None
 
 
 def _request(url: str, extra_headers: Optional[dict] = None) -> str:
@@ -61,28 +146,52 @@ def search_manga(query: str) -> List[Dict[str, str]]:
 
 
 def get_all_chapters(series_id: str) -> List[Tuple[float, str]]:
+    url = f"{BASE_URL}/series/{series_id}/full-chapter-list"
     try:
-        html = _request(f"{BASE_URL}/series/{series_id}/full-chapter-list", {"HX-Request": "true"})
-    except Exception:
-        return []
+        html = _request(url, {"HX-Request": "true"})
+    except Exception as exc:
+        raise MangaSourceError(f"Could not fetch the chapter list for {series_id}: {exc}") from exc
 
-    pairs = re.findall(
-        r'href="(https://weebcentral\.com/chapters/[^"]+)"[^>]*>.*?'
-        r'<span class="">\s*([^<]+?)\s*</span>',
-        html,
-        re.DOTALL,
-    )
-    result: List[Tuple[float, str]] = []
-    for chapter_url, title_text in pairs:
-        num_match = re.search(r"([\d]+(?:\.\d+)?)\s*$", title_text.strip())
-        if not num_match:
+    parser = _ChapterLinkParser()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception as exc:
+        raise MangaSourceError(f"Could not parse the chapter list for {series_id}: {exc}") from exc
+
+    by_number: Dict[float, str] = {}
+    for href, label in parser.links:
+        number = _chapter_number(label)
+        if number is None:
             continue
-        try:
-            result.append((float(num_match.group(1)), chapter_url))
-        except ValueError:
-            continue
-    result.sort(key=lambda item: item[0])
-    return result
+        chapter_url = urllib.parse.urljoin(BASE_URL + "/", href)
+        by_number.setdefault(number, chapter_url)
+
+    # Compatibility fallback for malformed fragments that HTMLParser could not close.
+    if not by_number:
+        for href, inner_html in re.findall(
+            r'<a\b[^>]*href=["\']([^"\']*(?:/chapters/)[^"\']*)["\'][^>]*>(.*?)</a>',
+            html,
+            re.IGNORECASE | re.DOTALL,
+        ):
+            label = re.sub(r"<[^>]+>", " ", inner_html)
+            number = _chapter_number(label)
+            if number is not None:
+                by_number.setdefault(number, urllib.parse.urljoin(BASE_URL + "/", href))
+
+    if not by_number:
+        content_hint = " ".join(re.sub(r"<[^>]+>", " ", html[:1000]).split())[:240]
+        LOGGER.error(
+            "WeebCentral returned a chapter-list response for %s, but no chapter links were recognised. Hint: %r",
+            series_id,
+            content_hint,
+        )
+        raise MangaSourceError(
+            "WeebCentral returned a chapter list, but its layout was not recognised. "
+            "The last known chapter cache has been retained."
+        )
+
+    return sorted(by_number.items(), key=lambda item: item[0])
 
 
 def filter_chapters(chapters: List[Tuple[float, str]], chapter_range: str) -> List[Tuple[float, str]]:
@@ -117,19 +226,40 @@ def filter_chapters(chapters: List[Tuple[float, str]], chapter_range: str) -> Li
 
 def get_chapter_images(chapter_url: str) -> List[str]:
     chapter_id = chapter_url.rstrip("/").split("/")[-1]
+    endpoint = f"{BASE_URL}/chapters/{chapter_id}/images?is_prev=False&reading_style=long_strip"
     try:
-        html = _request(
-            f"{BASE_URL}/chapters/{chapter_id}/images?is_prev=False&reading_style=long_strip",
-            {"HX-Request": "true"},
-        )
-    except Exception:
-        return []
-    images = re.findall(
-        r'<img\s[^>]*src="(https://[^"]+\.(?:jpg|png|webp|jpeg)[^"]*)"',
-        html,
-        re.IGNORECASE,
-    )
-    return list(dict.fromkeys(images))
+        html = _request(endpoint, {"HX-Request": "true"})
+    except Exception as exc:
+        raise MangaSourceError(f"Could not fetch images for chapter {chapter_id}: {exc}") from exc
+
+    parser = _ImageLinkParser()
+    parser.feed(html)
+    parser.close()
+
+    images: List[str] = []
+    seen: set[str] = set()
+    for candidate in parser.urls:
+        absolute = urllib.parse.urljoin(BASE_URL + "/", candidate)
+        path = urllib.parse.urlparse(absolute).path.lower()
+        if not any(path.endswith(ext) for ext in IMAGE_EXTS):
+            continue
+        if absolute not in seen:
+            seen.add(absolute)
+            images.append(absolute)
+
+    if not images:
+        # Keep support for image URLs with query strings or unusual attribute order.
+        for candidate in re.findall(
+            r'["\']((?:https?:)?//[^"\']+?\.(?:jpg|jpeg|png|webp)(?:\?[^"\']*)?)["\']',
+            html,
+            re.IGNORECASE,
+        ):
+            absolute = urllib.parse.urljoin(BASE_URL + "/", candidate)
+            if absolute not in seen:
+                seen.add(absolute)
+                images.append(absolute)
+
+    return images
 
 
 def slugify(value: str) -> str:
