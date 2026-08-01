@@ -3,7 +3,7 @@ The entirety of this project (with the important exception of the backend manga 
 Feel free to point out bugs and feature suggestions, or even fork your own for other devices!
 
 # MangaBridge
-
+![MangaBridge server mainscreen](docs/screenshots/mainscreen.png)
 MangaBridge is a self-hosted manga library, downloader, browser reader, and lightweight offline Kindle client.
 
 The server runs from a bind-mounted folder using Docker Compose or Portainer. It manages a PDF-only library, retrieves AniList metadata, discovers chapters, downloads selected ranges, monitors series for new releases, and exposes a compact API for older Kindles. The Kindle client is a KOReader plugin launched through KUAL and designed around the physical controls and limited resources of the Kindle 4 Non-Touch.
@@ -62,25 +62,16 @@ The full upstream license is available at https://github.com/aydinAGF/mangadl-cl
 
 `KINDLE_PDF_MODE=balanced` creates a smaller grayscale fixed-page PDF using the configured width, maximum height, JPEG quality, and cache limit. This saves storage but reduces detail and is not recommended when the original PDF already works well.
 
-## Repository layout
+## Screenshots
+![MangaBridge server mainscreen](docs/screenshots/mainscreen.png)
+![MangaBridge server library](docs/screenshots/library.png)
+![MangaBridge server chapter_downloader](docs/screenshots/chapter-downloader.png)
+![MangaBridge server chapter_manager](docs/screenshots/chapter-manager.png)
+![MangaBridge server reader](docs/screenshots/reader.png)
 
-```text
-.
-├── server/                    Portainer/Docker server
-│   ├── docker-compose.yml
-│   ├── startup.sh
-│   └── webapp/
-├── kindle/
-│   ├── extension/             KUAL menu and launch scripts
-│   ├── plugin/                KOReader MangaBridge plugin
-│   └── data/                  Kindle config template
-├── scripts/build_releases.py  Builds release ZIPs
-├── docs/TROUBLESHOOTING.md
-├── .env.example
-├── .gitignore
-├── LICENSE
-└── THIRD_PARTY_NOTICES.md
-```
+
+https://github.com/user-attachments/assets/a7aeea97-55f1-43f5-9727-bee2972f40bd
+
 
 ## Requirements
 
