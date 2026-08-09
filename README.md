@@ -1,333 +1,329 @@
-## Disclaimer
-The entirety of this project (with the important exception of the backend manga downloader) was vibecoded with ChatGPT. I am not a developer, I barely understand the very basics of python, so this is all quite beyond me. The whole project was born by a desire to read manga on an old kindle I had laying around, but I couldn't find any ready-made solutions online, so I decided to test how far the vibes would get me. Quite far turns out. Scary (this literally took no more than 2 days on and off). But the current version is definitely usable, and might be of interest to other people.
-Feel free to point out bugs and feature suggestions, or even fork your own for other devices!
+# MangaBridge v2
 
-# MangaBridge
-![MangaBridge server mainscreen](docs/screenshots/mainscreen.png)
+MangaBridge v2 is a self-hosted, multi-profile manga library built around a single deduplicated PDF collection. Each reader gets a personal shelf and independent progress, while trusted profiles can opt into one or more shared library views.
 
-MangaBridge is a self-hosted web app that functions as a manga library, downloader and browser reader. It is effectively a web GUI for the excellent [aydinAGF/mangadl-cli](url). On top of that there is also a lightweight plugin for jailbroken amazon kindles (only tested for 4.1.4) that communicates with the server to retrieve chapters to read.
+Existing Kindle clients remain compatible. MangaBridge Kindle v1.1.1 adds profile-aware reading-progress sync and automatic next-chapter continuation when paired with this server.
 
-The server runs from a bind-mounted folder using Docker Compose or Portainer. It manages a PDF-only library, retrieves AniList metadata, discovers chapters, downloads selected ranges, monitors series for new releases, and exposes a compact API for older Kindles. The Kindle client is a KOReader plugin launched through KUAL and designed around the physical controls and limited resources of the Kindle 4 Non-Touch.
+## Highlights
 
-> **Current working versions:** server `1.0.2`, Kindle client `1.0.5`.
+### Profiles
 
-## mangadl-cli
-The server downloader was inspired by and adapted from the workflow of aydinAGF/mangadl-cli, distributed under the MIT License.
+- First-run profile setup replaces browser HTTP Basic authentication.
+- Each profile has a username, display name, and optional password.
+- Password-free profiles are suitable for a trusted household LAN.
+- A signed-in profile can create additional profiles.
+- Existing series and legacy reading progress are assigned to the first profile during migration.
+- Reading status, last chapter, and last page are stored per profile.
 
-MIT License
-Copyright (c) 2026 aydin
+### Personal and shared libraries
 
-The full upstream license is available at https://github.com/aydinAGF/mangadl-cli/blob/main/LICENSE.
+- **My library** contains only the series added by the signed-in profile.
+- Any profile can create multiple named shared library views.
+- A shared view is a union of the accepted members’ personal libraries.
+- Invitations remain pending until the invited profile accepts them.
+- Cards identify which members added each series.
+- Each member can hide a series from a particular shared view without changing anyone’s personal library.
+- Hidden shared items can be restored from the shared-view toolbar.
 
-## Features
+### One physical collection
 
-### Web library
+- Manga folders and PDFs remain global under `data/library`.
+- Adding an existing series to another profile creates only a database membership; files are not copied.
+- Downloads, monitoring and Kindle delivery use the same physical PDFs.
+- Web and Kindle download workers are serialised per physical series and skip chapters that already exist.
+- Removing a series from one profile retains the files for other profiles.
+- Global deletion requires typing `DELETE` and shows the affected readers.
+- Downloaded chapters have a delete action with a shared-file warning.
 
-- Library-first dashboard with search and AniList metadata.
-- Add search results directly to the local library.
+### Explore
+
+- Popular and trending manga from AniList.
+- Recommendations derived from AniList IDs already present in the signed-in profile’s library.
+- Covers, banners, scores, status, genres and descriptions.
+- “Find source & add” resolves the selected AniList title against the configured manga source only when requested.
+- Explore data is cached for six hours to avoid unnecessary API traffic.
+
+### Client and offline downloads
+
+- Every chapter row includes **Download PDF** for saving the original chapter PDF to the current browser/device.
+- Chapters that are not yet present on the server are downloaded first and handed to the client automatically when ready.
+- The range-download panel includes **Download offline library** alongside the existing server download action.
+- Offline-library ZIPs contain the selected original PDFs, `manifest.json`, a README, and a self-contained `index.html` reader.
+- After extracting a bundle, `index.html` can be opened without MangaBridge or Internet access. The portable reader provides chapter selection, previous/next navigation, keyboard navigation, last-chapter memory, and direct-PDF fallback.
+
+### Authors and creators
+
+- AniList creator credits are stored with series metadata and displayed on the series page.
+- Creator names link to dedicated MangaBridge author pages.
+- Author pages include AniList image, biography, occupations, profile facts, and manga credits.
+- Works already accessible to the signed-in profile open directly in MangaBridge; other works can use **Find source & add**.
+- Existing AniList-linked series automatically backfill creator metadata when first opened after the upgrade.
+
+### Interface
+
+- New manga-inspired visual language with panel cuts, halftone texture, ink shadows and high-contrast controls.
+- The page background selects a random AniList banner from the signed-in profile’s library on each request.
+- Responsive personal, shared, Explore, series, chapter and reader views.
+- The Maintenance panel has been removed.
+
+### Existing capabilities retained
+
+- Search and AniList metadata matching.
 - PDF-only chapter storage.
-- Per-chapter download, refresh, and read actions.
-- Bulk chapter ranges such as `1-10`, `1,3,7.5`, or `all`.
-- Download all missing chapters.
-- In-browser reader with server-rendered pages.
-- Long-strip and single-page reading modes.
-- Previous/next chapter navigation and chapter selector.
-- Adjustable page width, fullscreen, and keyboard controls.
-- Reading progress, read/unread state, and Continue Reading.
-- Pinned series, library statistics, sorting, and activity history.
-- Remove a series while archiving its PDFs, or delete everything.
-- Restore archived series.
-- Monitor a series and automatically download new or missing chapters.
-- Persistent download-job history and library JSON export.
-- Optional HTTP Basic authentication.
+- Individual and range downloads.
+- Automatic monitoring and chapter downloads.
+- Integrated browser reader.
+- Download activity and event history.
+- Original-quality Kindle PDF delivery.
+- Kindle metadata covers and the existing `/api/kindle/v1/*` contract.
 
-### Kindle client
-
-- Designed for a jailbroken Kindle 4 Non-Touch on firmware 4.1.4.
-- Runs as a removable KOReader plugin launched from KUAL.
-- Browse the server library and chapter lists.
-- Cache library metadata for offline browsing.
-- Download one chapter or a range to the Kindle.
-- Ask the server to fetch a missing chapter from the Internet, then download and open it automatically.
-- Store each chapter as a local PDF for offline reading.
-- Continue the last opened MangaBridge chapter.
-- Delete an offline chapter without deleting the server copy.
-- Interrupted downloads use `.part` files and are validated before use.
-- Checks available storage before downloading.
-- Uses KOReader for page rendering, zoom, crop, orientation, contrast, refresh behavior, and physical page buttons.
-- Writes only below `/mnt/us`; no firmware package or system-partition modification is included.
-
-### Kindle PDF modes
-
-`KINDLE_PDF_MODE=original` is the recommended default. It sends the original server PDF unchanged, preserving resolution, crop boxes, orientation, and page boundaries.
-
-`KINDLE_PDF_MODE=balanced` creates a smaller grayscale fixed-page PDF using the configured width, maximum height, JPEG quality, and cache limit. This saves storage but reduces detail and is not recommended when the original PDF already works well.
-
-## Screenshots
-![MangaBridge server mainscreen](docs/screenshots/mainscreen.png)
-![MangaBridge server library](docs/screenshots/library.png)
-![MangaBridge server chapter_downloader](docs/screenshots/chapter-downloader.png)
-![MangaBridge server chapter_manager](docs/screenshots/chapter-manager.png)
-![MangaBridge server reader](docs/screenshots/reader.png)
-
-
-https://github.com/user-attachments/assets/a7aeea97-55f1-43f5-9727-bee2972f40bd
-
-
-## Requirements
-
-### Server
-
-- Docker Engine with Docker Compose, or Portainer.
-- An absolute host folder for the bind-mounted stack.
-- LAN access from the Kindle.
-- Outbound Internet access for metadata and chapter retrieval.
-
-The runtime image is the stock `python:3.12-slim-bookworm` image. Python dependencies are installed into a persistent bind-mounted virtual environment on startup.
-
-### Kindle
-
-- Kindle 4 Non-Touch, tested with firmware 4.1.4.
-- Jailbreak already installed.
-- KUAL already installed.
-- KOReader installed separately.
-- Wi-Fi configured through the normal Kindle interface.
-
-MangaBridge does not install the jailbreak, KUAL, KOReader, or firmware modifications.
-
-## Server installation with Portainer
-
-### 1. Prepare the host folder
-
-Clone or copy the repository to the Docker host. The server folder must be accessible through an absolute path, for example:
+## Storage model
 
 ```text
-/opt/portainer/mangabridge/server
+/stack/
+├── webapp/                         application source
+├── startup.sh
+├── docker-compose.yml
+├── venv/                           generated, persistent
+└── data/
+    ├── library/                    one physical folder per manga
+    ├── downloads/                  temporary downloader workspace
+    └── state/
+        ├── accounts-v2.sqlite3     profiles, memberships and progress
+        ├── chapter-cache/
+        ├── kindle-cache/
+        ├── pdf-cache/
+        ├── events.json
+        └── jobs.json
 ```
 
-Do not place your library or virtual environment in the Git repository. The server creates these bind-mounted paths automatically:
+The SQLite database contains no manga pages. Backing up `data/library` and `data/state/accounts-v2.sqlite3` preserves the collection and all profile state.
+
+## Upgrade from MangaBridge v1
+
+### 1. Back up the current stack
+
+At minimum, copy:
 
 ```text
-server/data/library
-server/data/downloads
-server/data/state
-server/venv
+data/library/
+data/state/
+.env
 ```
 
-### 2. Configure environment variables
+The v2 migration is non-destructive, but a backup is strongly recommended.
 
-Copy `.env.example` to `.env` outside version control and edit it:
+### 2. Replace application files
 
-```sh
-cp .env.example .env
-```
-
-At minimum, set:
+Stop or redeploy the container, then replace these bind-mounted files and directories with the v2 package:
 
 ```text
-MANGADL_STACK_PATH=/opt/portainer/mangabridge/server
+webapp/
+docker-compose.yml
+startup.sh
+.env.example
+```
+
+Do **not** replace or delete:
+
+```text
+data/
+venv/
+.env
+```
+
+The existing virtual environment can be retained. `startup.sh` reconciles the declared dependencies on launch.
+
+### 3. Update Portainer environment variables
+
+Required:
+
+```env
+MANGADL_STACK_PATH=/absolute/host/path/to/the/stack
 MANGADL_PORT=8095
-MANGADL_SECRET_KEY=a-long-random-secret
-KINDLE_API_TOKEN=a-different-long-random-token
-KINDLE_PDF_MODE=original
+MANGADL_SECRET_KEY=replace-with-a-long-random-secret
+KINDLE_API_TOKEN=replace-with-your-existing-kindle-token
 ```
 
-Optional web authentication:
+Optional:
+
+```env
+# Fallback profile for older Kindle clients that do not send a profile header.
+# MangaBridge Kindle v1.1.1 can instead choose its profile in config.lua.
+# When neither is set, the first profile is used.
+KINDLE_PROFILE_USERNAME=reader-one
+
+# Set to 1 only when the web interface is always accessed through HTTPS.
+SESSION_COOKIE_SECURE=0
+```
+
+`MANGADL_USERNAME` and `MANGADL_PASSWORD` are no longer used for the web login. They remain optional as a legacy Basic-auth fallback for Kindle API requests.
+
+### 4. Redeploy
+
+Deploy the updated stack in Portainer. The container will continue to use the stock `python:3.12-slim-bookworm` image and the bind-mounted startup script.
+
+Open:
 
 ```text
-MANGADL_USERNAME=your-user
-MANGADL_PASSWORD=your-password
+http://SERVER_IP:PORT/
 ```
 
-The Kindle normally needs only `KINDLE_API_TOKEN`; leave its Basic-auth username and password blank.
+On first launch, create the initial profile. MangaBridge will:
 
-### 3. Deploy in Portainer
+1. Create `data/state/accounts-v2.sqlite3`.
+2. Assign every currently visible v1 series to the new profile.
+3. Import legacy read chapters and the most recent chapter from each series metadata file.
+4. Leave all PDFs and metadata files in place.
 
-Create a stack using `server/docker-compose.yml`. Add the values from `.env` to the stack environment, especially the absolute `MANGADL_STACK_PATH`.
+## Fresh Portainer installation
 
-Deploy the stack and open:
+1. Copy this repository to a persistent host directory, for example:
+
+   ```text
+   /opt/portainer/mangabridge/server
+   ```
+
+2. In Portainer, create a stack from `docker-compose.yml`.
+3. Set `MANGADL_STACK_PATH` to that absolute host path.
+4. Set a strong `MANGADL_SECRET_KEY` and `KINDLE_API_TOKEN`.
+5. Deploy and open the published port.
+6. Create the first profile.
+
+## Profile login
+
+The login screen lists all profiles.
+
+- A password-free profile opens after selecting it and pressing **Enter library**.
+- A protected profile requires its password.
+- Use **Profiles & shared libraries** from the profile chip to edit the current profile or create another one.
+
+Passwords are stored as salted PBKDF2-SHA256 hashes in SQLite.
+
+## Shared library workflow
+
+1. Open **Profiles & shared libraries**.
+2. Create a named shared library, such as `Family shelf`.
+3. Open the shared library and invite another existing profile.
+4. Sign in as the invited profile.
+5. Open **Profiles & shared libraries** and accept the pending invitation.
+6. The shared tab now displays the union of both personal libraries.
+
+A series may appear once even when several members have it. The card lists all members who added it.
+
+### Hiding a shared series
+
+Press **Hide** on a shared card. This affects only the current profile in that shared view. Use the **Hidden** menu in the shared toolbar to restore it.
+
+## Deletion rules
+
+### Remove a series from one profile
+
+Choose **Remove only from my library**. This deletes the membership and that profile’s progress, but retains all physical files and every other profile’s membership.
+
+### Delete a series globally
+
+Choose **Delete files for all profiles**, review the affected readers, and type `DELETE`. This removes:
+
+- the physical series folder and PDFs;
+- all profile memberships for that series;
+- all per-profile progress for that series;
+- shared-view hide records for that series.
+
+### Delete a chapter
+
+The chapter delete dialog lists readers who have the series. Confirming removes the shared PDF, so every web and Kindle profile loses access to that chapter until it is downloaded again.
+
+## Kindle compatibility
+
+The current Kindle application continues to use API version 1 endpoints:
 
 ```text
-http://SERVER_IP:MANGADL_PORT
+GET  /api/kindle/v1/ping
+GET  /api/kindle/v1/library
+GET  /api/kindle/v1/series/<series-id>
+GET  /api/kindle/v1/series/<series-id>/chapter/<chapter-id>/progress
+POST /api/kindle/v1/series/<series-id>/chapter/<chapter-id>/progress
+POST /api/kindle/v1/series/<series-id>/chapter/<chapter-id>/prepare
+POST /api/kindle/v1/series/<series-id>/bulk
+GET  /api/kindle/v1/jobs/<job-id>
+GET  /api/kindle/v1/series/<series-id>/chapter/<chapter-id>/file
+GET  /api/kindle/v1/series/<series-id>/cover
 ```
 
-The first start creates `server/venv`, installs dependencies, verifies the imports, and starts Gunicorn. Subsequent starts reuse and repair the virtual environment when requirements change.
+MangaBridge Kindle v1.1.1 sends `X-MangaBridge-Profile` with the configured `profile_username`; that profile controls library visibility and progress. An explicitly requested unknown profile returns an error rather than falling back. Clients that do not send the header continue to use `KINDLE_PROFILE_USERNAME`, then the first profile as a final fallback.
 
-### Docker Compose without Portainer
+Progress is stored in the same per-profile `reading_progress` table used by the browser. The Kindle API translates KOReader's 1-based PDF page numbers to the browser reader's 0-based page indexes, so the same physical page resumes correctly across devices. Progress merges monotonically: an older device cannot reduce the furthest saved page.
 
-From the repository root:
+Test it with:
 
-```sh
-docker compose --env-file .env -f server/docker-compose.yml up -d
-```
-
-View logs:
-
-```sh
-docker compose --env-file .env -f server/docker-compose.yml logs -f
-```
-
-### Verify the Kindle API
-
-```sh
-curl -i \
-  -H "X-MangaDL-Token: YOUR_TOKEN" \
+```bash
+curl -H "X-MangaDL-Token: YOUR_TOKEN" \
   http://SERVER_IP:PORT/api/kindle/v1/ping
 ```
 
-A working response has HTTP `200` and includes:
+The response retains `api_version: 1` and reports the selected profile.
 
-```json
-{
-  "ok": true,
-  "api_version": 1,
-  "bridge_version": "1.0.2"
-}
-```
+## Explore data
 
-Test the library endpoint:
+MangaBridge uses AniList’s public GraphQL API for discovery and metadata. No AniList login is required. The server caches popular and recommendation responses for six hours and resolves a downloadable source only when a user presses **Find source & add**.
 
-```sh
-curl -i \
-  -H "X-MangaDL-Token: YOUR_TOKEN" \
-  http://SERVER_IP:PORT/api/kindle/v1/library
-```
+Recommendations are based on up to four AniList-linked series from the current profile and are deduplicated against that profile’s library.
 
-## Kindle installation
+## Security notes
 
-### Recommended: use a release ZIP
+- Use a long random `MANGADL_SECRET_KEY`.
+- Give password-free profiles only to users on a trusted network.
+- Put the service behind HTTPS, a VPN, or an authenticated reverse proxy before exposing it publicly.
+- Set `SESSION_COOKIE_SECURE=1` only behind HTTPS.
+- Keep `KINDLE_API_TOKEN` private and rotate it if disclosed.
+- The web session is separate from the Kindle token.
+- Web state-changing requests are protected with per-session CSRF tokens; Kindle API requests remain token-authenticated and are exempt.
+- Destructive global actions require explicit confirmation but are available to any profile that owns the series.
 
-Build the release package locally or download `mangabridge-kindle-usb-v1.0.5.zip` from the repository's GitHub Releases page.
+## Backup and restore
 
-Extract it directly into the Kindle USB root. After extraction, these paths must exist:
+Back up:
 
 ```text
-/mnt/us/extensions/mangabridge
-/mnt/us/koreader/plugins/mangabridge.koplugin
-/mnt/us/mangabridge
+data/library/
+data/state/accounts-v2.sqlite3
+data/state/jobs.json
+data/state/events.json
 ```
 
-Edit this file over USB:
+SQLite uses WAL mode. For a fully consistent live backup, stop the container first or include the adjacent `accounts-v2.sqlite3-wal` and `accounts-v2.sqlite3-shm` files.
 
-```text
-/mnt/us/mangabridge/config.lua
-```
+## Troubleshooting
 
-Example:
+### The first profile does not contain the old library
+
+Confirm the series folders existed under `data/library` before the first profile was created. You can add a missing global series to a profile through search without downloading its PDFs again.
+
+### A shared library is empty
+
+Both profiles must have accepted membership. Pending invitations are shown under **Profiles & shared libraries**.
+
+### Explore is temporarily empty
+
+Check container Internet access and AniList availability. Existing cached suggestions remain available when possible. Use **Refresh suggestions** after connectivity returns.
+
+### The Kindle shows the wrong profile
+
+For MangaBridge Kindle v1.1.1 or later, set the exact profile username in `/mnt/us/mangabridge/config.lua`:
 
 ```lua
-return {
-    server_url = "http://192.168.1.50:8095",
-    api_token = "replace-with-your-KINDLE_API_TOKEN",
-
-    username = "",
-    password = "",
-
-    timeout_seconds = 45,
-    download_timeout_seconds = 600,
-    poll_attempts = 600,
-}
+profile_username = "the-profile-username",
 ```
 
-Use the server's real LAN IP address. Older Kindles are most compatible with plain HTTP on a trusted home network.
+Then use **Test connection** on the Kindle and confirm the selected profile. For older Kindle clients, set `KINDLE_PROFILE_USERNAME` on the server and recreate the container.
 
-Safely eject the Kindle, close and reopen KUAL, then select:
+### A deleted chapter still appears in the browser reader
 
-```text
-MangaBridge → Launch MangaBridge
-```
+Reload the series page. Rendered page images may remain in the server cache until it is pruned, but the chapter endpoint will no longer expose them without the source PDF.
 
-KOReader can take several seconds to start on this hardware. Avoid selecting the launcher repeatedly.
+## Version
 
-### Kindle controls
-
-In MangaBridge lists:
-
-- Page-turn buttons move through menu pages.
-- The five-way controller highlights and opens items.
-- Holding/selecting an offline chapter offers local deletion.
-
-While reading:
-
-- The physical page buttons turn pages through KOReader.
-- The Kindle Menu/Options button opens KOReader reader controls.
-- KOReader provides zoom, crop, orientation, contrast, page fitting, refresh settings, and navigation.
-
-## Offline behavior
-
-The client stores downloaded PDFs below:
-
-```text
-/mnt/us/mangabridge/library
-```
-
-Cached library and series metadata are stored below:
-
-```text
-/mnt/us/mangabridge/cache
-```
-
-Once a chapter has been downloaded, it can be read without the server or Wi-Fi. Refreshing the library, fetching uncached chapter lists, and preparing missing chapters require network access.
-
-## Monitoring and automatic downloads
-
-Open a series in the web interface and enable monitoring.
-
-Two modes are available:
-
-- **Only chapters released after monitoring starts** records a baseline and downloads later releases.
-- **Download every missing chapter** fills all gaps in the local server library.
-
-The global watcher wakes at `WATCH_SCAN_SECONDS`; each series also has its own minimum interval. Automatic downloads are stored as PDFs in the server library and become available to the Kindle client.
-
-## Environment variables
-
-| Variable | Default | Purpose |
-|---|---:|---|
-| `MANGADL_STACK_PATH` | `/opt/portainer/mangabridge/server` | Absolute host bind-mount path |
-| `MANGADL_PORT` | `8095` | Host and container web port |
-| `MANGADL_SECRET_KEY` | insecure placeholder | Flask session secret; replace it |
-| `MANGADL_USERNAME` | empty | Optional web Basic-auth username |
-| `MANGADL_PASSWORD` | empty | Optional web Basic-auth password |
-| `KINDLE_API_TOKEN` | empty | Token accepted by `/api/kindle/*` |
-| `WATCH_SCAN_SECONDS` | `300` | Background watch scan frequency; minimum 300 |
-| `PDF_RENDER_SCALE` | `1.6` | Browser-reader page-render scale |
-| `KINDLE_PDF_MODE` | `original` | `original` or `balanced` |
-| `KINDLE_RENDER_WIDTH` | `1200` | Balanced-mode source raster width |
-| `KINDLE_RENDER_MAX_HEIGHT` | `1600` | Balanced-mode source raster maximum height |
-| `KINDLE_JPEG_QUALITY` | `86` | Balanced-mode JPEG quality |
-| `KINDLE_CACHE_MAX_MB` | `2048` | Server cache limit for balanced Kindle PDFs |
-
-## Updating
-
-### Server
-
-Back up `server/data`, replace the tracked source files, and recreate the container. Do not remove `server/data` or `server/venv` unless troubleshooting a damaged environment.
-
-### Kindle
-
-Extract the new Kindle release ZIP into the USB root and replace existing extension/plugin files. Preserve:
-
-```text
-/mnt/us/mangabridge/config.lua
-/mnt/us/mangabridge/library
-/mnt/us/mangabridge/cache
-```
-
-A plugin-only update can replace `/mnt/us/koreader/plugins/mangabridge.koplugin` without touching downloads.
-
-## Security and privacy
-
-MangaBridge is intended for a trusted LAN. Plain HTTP exposes the Kindle API token to devices capable of observing that network. Do not publish the application port directly to the Internet. See [SECURITY.md](SECURITY.md).
-
-If a token or password is exposed, rotate it and recreate the container. Never place real credentials in screenshots, issues, example files, commits, or release archives.
-
-## Legal notice
-
-MangaBridge does not include manga content. Use it only with material you are legally permitted to access and retain. Website integrations can change or stop working without notice.
-
-The downloader workflow is inspired by the MIT-licensed [`mangadl-cli`](https://github.com/aydinAGF/mangadl-cli). The Kindle client requires the separately installed AGPL-licensed [KOReader](https://github.com/koreader/koreader) and KUAL. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## License
-
-MangaBridge source in this repository is released under the MIT License. See [LICENSE](LICENSE).
+- Web/server: **2.3.1**
+- Kindle API: **1** (backwards compatible)
+- Recommended Kindle client: **1.1.1** for progress sync; older API v1 clients remain compatible
