@@ -1,81 +1,33 @@
+## Disclaimer
+The entirety of this project (with the important exception of the backend manga downloader) was vibecoded with ChatGPT. I am not a developer, I barely understand the very basics of python, so this is all quite beyond me. The whole project was born by a desire to read manga on an old kindle I had laying around, but I couldn't find any ready-made solutions online, so I decided to test how far the vibes would get me. Quite far turns out. Scary (this literally took no more than 2 days on and off). But the current version is definitely usable, and might be of interest to other people.
+Feel free to point out bugs and feature suggestions, or even fork your own for other devices!
+
 # MangaBridge v2
+MangaBridge is a self-hosted web app that functions as a self-hosted manga library, downloader and browser reader. It is effectively a web GUI for the excellent [aydinAGF/mangadl-cli](url). On top of that there is also a lightweight plugin for jailbroken amazon kindles (only tested for 4.1.4) that communicates with the server to retrieve chapters to read.
 
-MangaBridge v2 is a self-hosted, multi-profile manga library built around a single deduplicated PDF collection. Each reader gets a personal shelf and independent progress, while trusted profiles can opt into one or more shared library views.
+## Features
 
-Existing Kindle clients remain compatible. MangaBridge Kindle v1.1.1 adds profile-aware reading-progress sync and automatic next-chapter continuation when paired with this server.
+* **Multi-user profiles** — Individual usernames, display names, optional passwords, and separate libraries and reading progress for each user.
+* **Personal libraries** — Each profile manages its own manga collection while sharing the same physical files on the server.
+* **Shared libraries** — Create named shared views with other profiles, invite members, combine collections, and independently show or hide titles.
+* **Single-copy storage** — Manga PDFs are stored once under `data/library` and reused across profiles, shared libraries, the web reader, downloads, and Kindle clients.
+* **Manga search & metadata** — Search the configured manga source and enrich series with AniList covers, banners, descriptions, genres, scores, status, and other metadata.
+* **Explore & recommendations** — Browse popular and trending manga and receive recommendations based on titles already in your library.
+* **Authors & creators** — View creator credits directly from manga pages and browse dedicated author pages with portraits, biographies, details, and other works.
+* **Chapter management** — Download individual chapters or chapter ranges, monitor series for new releases, remove downloaded chapters, and view download activity and history.
+* **Integrated web reader** — Read downloaded chapters directly in the browser with scroll and single-page modes, zoom controls, fullscreen support, and saved reading position.
+* **Reading progress** — Track chapter and page progress independently for every profile and resume reading across supported clients.
+* **Offline reading** — Download individual chapter PDFs or generate portable offline-library bundles containing multiple chapters and a self-contained browser reader.
+* **Kindle / KOReader support** — Browse the MangaBridge library from Kindle, download original-quality PDFs, use manga cover metadata, track reading progress, continue reading, and automatically move to or download the next chapter.
+* **Kindle progress sync** — Associate a Kindle with a MangaBridge profile and synchronize chapter/page progress between KOReader and the server while retaining offline progress.
+* **Automatic downloads** — Monitor selected series and automatically fetch newly available chapters.
+* **Shared download handling** — Web and Kindle downloads use the same physical chapter files, avoid duplicate downloads, and serialize concurrent work on the same series.
+* **Storage controls** — Delete individual downloaded chapters or globally remove a series, with safeguards when files are shared by multiple profiles.
+* **Responsive interface** — Manga-inspired UI for desktop and mobile with library, shared-library, Explore, series, chapter, download, and reader views.
+* **AniList integration** — Metadata, creator information, recommendations, popular/trending discovery, and dynamic library artwork with caching to reduce external API traffic.
+* **Docker deployment** — Designed for self-hosting with Docker/Portainer and persistent library, database, configuration, and cache storage.
+* **Kindle API** — Versioned `/api/kindle/v1/*` API for library browsing, chapter delivery, profile selection, metadata, and reading-progress synchronization.
 
-## Highlights
-
-### Profiles
-
-- First-run profile setup replaces browser HTTP Basic authentication.
-- Each profile has a username, display name, and optional password.
-- Password-free profiles are suitable for a trusted household LAN.
-- A signed-in profile can create additional profiles.
-- Existing series and legacy reading progress are assigned to the first profile during migration.
-- Reading status, last chapter, and last page are stored per profile.
-
-### Personal and shared libraries
-
-- **My library** contains only the series added by the signed-in profile.
-- Any profile can create multiple named shared library views.
-- A shared view is a union of the accepted members’ personal libraries.
-- Invitations remain pending until the invited profile accepts them.
-- Cards identify which members added each series.
-- Each member can hide a series from a particular shared view without changing anyone’s personal library.
-- Hidden shared items can be restored from the shared-view toolbar.
-
-### One physical collection
-
-- Manga folders and PDFs remain global under `data/library`.
-- Adding an existing series to another profile creates only a database membership; files are not copied.
-- Downloads, monitoring and Kindle delivery use the same physical PDFs.
-- Web and Kindle download workers are serialised per physical series and skip chapters that already exist.
-- Removing a series from one profile retains the files for other profiles.
-- Global deletion requires typing `DELETE` and shows the affected readers.
-- Downloaded chapters have a delete action with a shared-file warning.
-
-### Explore
-
-- Popular and trending manga from AniList.
-- Recommendations derived from AniList IDs already present in the signed-in profile’s library.
-- Covers, banners, scores, status, genres and descriptions.
-- “Find source & add” resolves the selected AniList title against the configured manga source only when requested.
-- Explore data is cached for six hours to avoid unnecessary API traffic.
-
-### Client and offline downloads
-
-- Every chapter row includes **Download PDF** for saving the original chapter PDF to the current browser/device.
-- Chapters that are not yet present on the server are downloaded first and handed to the client automatically when ready.
-- The range-download panel includes **Download offline library** alongside the existing server download action.
-- Offline-library ZIPs contain the selected original PDFs, `manifest.json`, a README, and a self-contained `index.html` reader.
-- After extracting a bundle, `index.html` can be opened without MangaBridge or Internet access. The portable reader provides chapter selection, previous/next navigation, keyboard navigation, last-chapter memory, and direct-PDF fallback.
-
-### Authors and creators
-
-- AniList creator credits are stored with series metadata and displayed on the series page.
-- Creator names link to dedicated MangaBridge author pages.
-- Author pages include AniList image, biography, occupations, profile facts, and manga credits.
-- Works already accessible to the signed-in profile open directly in MangaBridge; other works can use **Find source & add**.
-- Existing AniList-linked series automatically backfill creator metadata when first opened after the upgrade.
-
-### Interface
-
-- New manga-inspired visual language with panel cuts, halftone texture, ink shadows and high-contrast controls.
-- The page background selects a random AniList banner from the signed-in profile’s library on each request.
-- Responsive personal, shared, Explore, series, chapter and reader views.
-- The Maintenance panel has been removed.
-
-### Existing capabilities retained
-
-- Search and AniList metadata matching.
-- PDF-only chapter storage.
-- Individual and range downloads.
-- Automatic monitoring and chapter downloads.
-- Integrated browser reader.
-- Download activity and event history.
-- Original-quality Kindle PDF delivery.
-- Kindle metadata covers and the existing `/api/kindle/v1/*` contract.
 
 ## Storage model
 
