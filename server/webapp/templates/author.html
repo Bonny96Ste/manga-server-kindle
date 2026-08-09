@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ author.name }} · MangaBridge{% endblock %}
+{% block content %}
+<section class="author-hero panel-cut">
+  <div class="author-portrait">
+    {% if author.image %}<img src="{{ author.image }}" alt="{{ author.name }}">{% else %}<div class="cover-placeholder">{{ author.name[:1] }}</div>{% endif %}
+  </div>
+  <div class="author-summary">
+    <a class="back-link" href="{{ request.referrer or url_for('library_home') }}">← Back</a>
+    <span class="eyebrow">Creator profile</span>
+    <h1>{{ author.name }}</h1>
+    {% if author.native_name %}<p class="native-name">{{ author.native_name }}</p>{% endif %}
+    {% if author.occupations %}<div class="chips">{% for occupation in author.occupations %}<span>{{ occupation }}</span>{% endfor %}</div>{% endif %}
+    <div class="author-facts">
+      {% if author.home_town %}<span><strong>Home</strong> {{ author.home_town }}</span>{% endif %}
+      {% if author.age %}<span><strong>Age</strong> {{ author.age }}</span>{% endif %}
+      {% if author.years_active %}<span><strong>Active</strong> {{ author.years_active|join('–') }}</span>{% endif %}
+      <span><strong>Works</strong> {{ works|length }}</span>
+    </div>
+    {% if author.description %}<p class="author-bio">{{ author.description }}</p>{% endif %}
+    {% if author.site_url %}<a class="button secondary" href="{{ author.site_url }}" target="_blank" rel="noreferrer">View on AniList</a>{% endif %}
+  </div>
+</section>
+
+<section class="section-block">
+  <div class="section-heading"><div><span class="eyebrow">Bibliography</span><h2>Manga credits</h2></div><span class="count-pill">{{ works|length }}</span></div>
+  <div class="explore-grid author-works-grid">
+    {% for item in works %}
+    <article class="explore-card manga-card">
+      <div class="explore-image">{% if item.cover %}<img src="{{ item.cover }}" alt="" loading="lazy">{% endif %}{% if item.score %}<span class="score-stamp">★ {{ item.score }}</span>{% endif %}</div>
+      <div class="explore-copy">
+        <h3>{{ item.title }}</h3>
+        {% if item.description %}<p class="description clamp-3">{{ item.description }}</p>{% endif %}
+        <div class="chips">{% for genre in item.genres[:3] %}<span>{{ genre }}</span>{% endfor %}</div>
+        <div class="fact-row"><span>{{ item.status|replace('_',' ')|title if item.status else 'Unknown status' }}</span><span>{{ item.chapters or '—' }} ch.</span></div>
+        {% if item.library_path %}
+          <a class="button wide-button" href="{{ url_for('series_view', series_path=item.library_path) }}">Open in library</a>
+        {% else %}
+          <form method="post" action="{{ url_for('explore_add', anilist_id=item.id) }}">{{ csrf_field() }}<button class="wide-button">Find source & add</button></form>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <div class="empty-state"><p>No manga credits were returned by AniList.</p></div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

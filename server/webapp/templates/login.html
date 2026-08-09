@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Choose profile · MangaBridge{% endblock %}
+{% block page_class %}auth-page{% endblock %}
+{% block content %}
+<section class="login-shell">
+  <div class="login-title"><span class="brand-kana large">漫画</span><h1>Who is reading?</h1><p>Choose a profile. Password-free profiles open immediately after submitting.</p></div>
+  <div class="profile-grid">
+    {% for profile in profiles %}
+    <form method="post" class="profile-login panel-cut {% if selected_id|string == profile.id|string %}selected{% endif %}">{{ csrf_field() }}
+      <input type="hidden" name="profile_id" value="{{ profile.id }}"><input type="hidden" name="next" value="{{ next }}">
+      <button class="profile-select" type="button" onclick="this.closest('form').classList.toggle('selected');this.closest('form').querySelector('.password-row').hidden=false">
+        <span class="avatar avatar-large" data-seed="{{ profile.avatar_seed }}">{{ profile.display_name[:1]|upper }}</span>
+        <strong>{{ profile.display_name }}</strong><small>@{{ profile.username }}</small>
+      </button>
+      <div class="password-row" {% if not selected_id or selected_id|string != profile.id|string %}hidden{% endif %}>
+        {% if profile.has_password %}<input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus>{% endif %}
+        <button class="button primary">Enter library</button>
+      </div>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

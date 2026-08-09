@@ -1,7 +1,7 @@
 services:
   mangabridge:
     image: python:3.12-slim-bookworm
-    container_name: mangabridge-server
+    container_name: mangabridge-v2
     working_dir: /stack
     command: ["/bin/sh", "/stack/startup.sh"]
     environment:
@@ -16,14 +16,21 @@ services:
       WATCH_SCAN_SECONDS: "${WATCH_SCAN_SECONDS:-300}"
       PDF_RENDER_SCALE: "${PDF_RENDER_SCALE:-1.6}"
       SECRET_KEY: "${MANGADL_SECRET_KEY:-replace-with-a-long-random-value}"
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-0}"
+      KINDLE_API_TOKEN: "${KINDLE_API_TOKEN:-}"
+      KINDLE_PROFILE_USERNAME: "${KINDLE_PROFILE_USERNAME:-}"
+      # Retained only as an optional fallback for older Kindle configurations.
       APP_USERNAME: "${MANGADL_USERNAME:-}"
       APP_PASSWORD: "${MANGADL_PASSWORD:-}"
-      KINDLE_API_TOKEN: "${KINDLE_API_TOKEN:-}"
       KINDLE_PDF_MODE: "${KINDLE_PDF_MODE:-original}"
       KINDLE_RENDER_WIDTH: "${KINDLE_RENDER_WIDTH:-1200}"
       KINDLE_RENDER_MAX_HEIGHT: "${KINDLE_RENDER_MAX_HEIGHT:-1600}"
       KINDLE_JPEG_QUALITY: "${KINDLE_JPEG_QUALITY:-86}"
       KINDLE_CACHE_MAX_MB: "${KINDLE_CACHE_MAX_MB:-2048}"
+      KINDLE_COVER_WIDTH: "${KINDLE_COVER_WIDTH:-600}"
+      KINDLE_COVER_HEIGHT: "${KINDLE_COVER_HEIGHT:-800}"
+      KINDLE_COVER_QUALITY: "${KINDLE_COVER_QUALITY:-90}"
+      KINDLE_COVER_FIT: "${KINDLE_COVER_FIT:-contain}"
     ports:
       - "${MANGADL_PORT:-8095}:${MANGADL_PORT:-8095}"
     volumes:

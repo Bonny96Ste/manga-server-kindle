@@ -1,62 +1,116 @@
 {% extends 'base.html' %}
-{% block title %}{{ series.title }} · Manga Library{% endblock %}
+{% block title %}{{ series.title }} · MangaBridge{% endblock %}
 {% block content %}
-<section class="series-hero enhanced-hero">
-  <div class="series-cover">{% if series.cover %}<img src="{{ series.cover }}" alt="cover">{% else %}<div class="cover-placeholder">{{ series.title[:1] }}</div>{% endif %}</div>
+<section class="series-hero manga-series-hero" {% if series.metadata_block.bannerImage %}style="--series-banner:url('{{ series.metadata_block.bannerImage }}')"{% endif %}>
+  <div class="series-cover">
+    {% if series.cover %}<img src="{{ series.cover }}" alt="cover">{% else %}<div class="cover-placeholder">{{ series.title[:1] }}</div>{% endif %}
+  </div>
   <div class="series-summary">
-    <a class="back-link" href="{{ url_for('library_home') }}">← Library</a><span class="eyebrow">Series dashboard</span><h1>{{ series.title }}</h1>
+    <a class="back-link" href="{{ url_for('shared_view', space_id=shared_space.id) if shared_space else url_for('library_home') }}">← Back to shelf</a>
+    <span class="eyebrow">{{ 'Shared series' if shared_space else 'Series' }}</span>
+    <h1>{{ series.title }}</h1>
     {% if series.metadata_block.description %}<p class="description clamp-4">{{ render_desc(series.metadata_block) }}</p>{% endif %}
-    <div class="series-facts"><span><strong>{{ series.downloaded_count }}</strong> PDF chapters</span><span><strong>{{ series.unread_count }}</strong> unread</span><span><strong>{{ series.missing_count }}</strong> missing</span><span><strong>{{ format_bytes(series.downloaded_size) }}</strong> stored</span></div>
+    <div class="chips">{% for genre in series.metadata_block.genres[:5] %}<span>{{ genre }}</span>{% endfor %}</div>
+    {% if series.metadata_block.creators %}
+    <div class="creator-links">
+      <span class="creator-label">Creators</span>
+      {% for creator in series.metadata_block.creators %}
+        <a class="creator-pill" href="{{ url_for('author_view', staff_id=creator.id) }}"><strong>{{ creator.name }}</strong><small>{{ creator.role }}</small></a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="series-facts">
+      <span><strong>{{ series.downloaded_count }}</strong> downloaded</span>
+      <span><strong>{{ series.unread_count }}</strong> unread</span>
+      <span><strong>{{ series.missing_count }}</strong> missing</span>
+      <span><strong>{{ owners|length }}</strong> reader{{ '' if owners|length == 1 else 's' }}</span>
+    </div>
+    <p class="owners">In the libraries of {% for owner in owners %}<span class="owner-pill">{{ owner.display_name }}</span>{% endfor %}</p>
     <div class="card-actions">
       {% if series.continue_chapter is not none %}<a class="button" href="{{ url_for('chapter_read', series_path=series.path, chapter_id=chapter_key(series.continue_chapter)) }}">Continue chapter {{ series.continue_chapter }}</a>{% endif %}
-      <form method="post" action="{{ url_for('series_pin', series_path=series.path) }}"><button class="button secondary">{{ 'Unpin' if series.pinned else 'Pin series' }}</button></form>
-      <form method="post" action="{{ url_for('series_refresh', series_path=series.path) }}"><button class="button secondary">Refresh</button></form>
-      <button class="button danger ghost" data-dialog="remove-series" type="button">Remove</button>
+      {% if owned_by_me %}
+        <form method="post" action="{{ url_for('series_pin', series_path=series.path) }}">{{ csrf_field() }}<button class="secondary">{{ 'Unpin' if series.pinned else 'Pin' }}</button></form>
+      {% else %}
+        <form method="post" action="{{ url_for('series_adopt', series_path=series.path) }}">{{ csrf_field() }}<button>Add to my library</button></form>
+      {% endif %}
+      <form method="post" action="{{ url_for('series_refresh', series_path=series.path) }}">{{ csrf_field() }}<button class="secondary">Refresh</button></form>
+      {% if series.metadata_block.siteUrl %}<a class="button secondary" href="{{ series.metadata_block.siteUrl }}" target="_blank" rel="noreferrer">AniList</a>{% endif %}
+      {% if owned_by_me %}<button class="danger ghost" type="button" data-dialog="remove-series">Remove</button>{% endif %}
     </div>
   </div>
 </section>
 
-<div class="three-column">
-  <section class="panel">
-    <div class="section-heading compact"><div><span class="eyebrow">Monitoring</span><h2>Automatic chapters</h2></div>{% if series.watch.enabled %}<span class="badge success">Active</span>{% endif %}</div>
-    <form class="settings-form" method="post" action="{{ url_for('series_watch', series_path=series.path) }}">
-      <label class="switch-row"><span><strong>Monitor this series</strong><small>Check periodically for chapter changes.</small></span><input type="checkbox" name="enabled" {% if series.watch.enabled %}checked{% endif %}></label>
-      <label class="switch-row"><span><strong>Auto-download PDFs</strong><small>Queue matching chapters automatically.</small></span><input type="checkbox" name="auto_download" {% if series.watch.auto_download %}checked{% endif %}></label>
-      <label><span>Monitoring mode</span><select name="mode"><option value="new" {% if series.watch.mode=='new' %}selected{% endif %}>Only chapters released after monitoring starts</option><option value="missing" {% if series.watch.mode=='missing' %}selected{% endif %}>Download every missing chapter</option></select></label>
-      <label><span>Check interval</span><div class="input-with-suffix"><input type="number" name="interval_minutes" min="5" step="5" value="{{ series.watch.interval_minutes }}"><span>minutes</span></div></label>
+<div class="series-tools">
+  <section class="panel panel-cut">
+    <div class="section-heading compact"><div><span class="eyebrow">Downloads</span><h2>Get chapters</h2></div><span class="badge">PDF</span></div>
+    <form method="post" action="{{ url_for('series_download_missing', series_path=series.path) }}">{{ csrf_field() }}<button class="wide-button">Download all missing to server</button></form>
+    <form class="settings-form compact-form download-range-form" method="post" action="{{ url_for('series_download', series_path=series.path) }}">
+      {{ csrf_field() }}
+      <label><span>Chapter range</span><input name="chapter_range" placeholder="1-10, 14, 20-25 or all"></label>
+      <div class="range-actions">
+        <button class="secondary" type="submit">Download range to server</button>
+        <button type="submit" formaction="{{ url_for('series_client_range', series_path=series.path) }}">Download offline library</button>
+      </div>
+      <small class="form-help">Offline library downloads a ZIP containing the selected PDFs plus a portable browser reader.</small>
+    </form>
+  </section>
+  <section class="panel panel-cut">
+    <div class="section-heading compact"><div><span class="eyebrow">Monitoring</span><h2>Automatic chapters</h2></div>{% if series.watch.enabled %}<span class="badge success">On</span>{% endif %}</div>
+    <form class="settings-form compact-form" method="post" action="{{ url_for('series_watch', series_path=series.path) }}">
+      {{ csrf_field() }}
+      <label class="switch-row"><span><strong>Monitor series</strong><small>Shared files are downloaded once.</small></span><input type="checkbox" name="enabled" {% if series.watch.enabled %}checked{% endif %}></label>
+      <label class="switch-row"><span><strong>Auto-download</strong></span><input type="checkbox" name="auto_download" {% if series.watch.auto_download %}checked{% endif %}></label>
+      <label><span>Mode</span><select name="mode"><option value="new" {% if series.watch.mode=='new' %}selected{% endif %}>Only future chapters</option><option value="missing" {% if series.watch.mode=='missing' %}selected{% endif %}>Every missing chapter</option></select></label>
+      <input type="hidden" name="interval_minutes" value="{{ series.watch.interval_minutes }}">
       <button>Save monitoring</button>
     </form>
   </section>
-
-  <section class="panel">
-    <div class="section-heading compact"><div><span class="eyebrow">Downloads</span><h2>Fill the library</h2></div><span class="badge">PDF only</span></div>
-    <div class="stack-actions">
-      <form method="post" action="{{ url_for('series_download_missing', series_path=series.path) }}"><button class="wide-button">Download all missing chapters</button></form>
-      <form class="settings-form" method="post" action="{{ url_for('series_download', series_path=series.path) }}"><label><span>Custom range</span><input name="chapter_range" value="all" placeholder="1-10, 14, 20-25"></label><button class="secondary">Download range</button></form>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="section-heading compact"><div><span class="eyebrow">Storage</span><h2>Maintenance</h2></div></div>
-    <p class="muted">Remove legacy page-image folders when a matching PDF is safely present. PDFs are never removed by cleanup.</p>
-    <form method="post" action="{{ url_for('series_cleanup', series_path=series.path) }}"><button class="button secondary wide-button">Clean redundant image folders</button></form>
-    <p class="fine-print muted">Last checked: {{ series.watch.last_checked_at or 'never' }}<br>Last auto-download: {{ series.watch.last_auto_download_at or 'never' }}</p>
-  </section>
 </div>
 
-<section class="panel chapter-panel">
-  <div class="section-heading"><div><span class="eyebrow">Chapters</span><h2>Read and manage</h2></div><span class="count-pill">{{ series.remote_chapter_rows|length }}</span></div>
-  {% if series.remote_chapter_rows %}<div class="chapter-list">
+<section class="panel chapter-panel panel-cut">
+  <div class="section-heading"><div><span class="eyebrow">Chapter shelf</span><h2>Read & manage</h2></div><span class="count-pill">{{ series.remote_chapter_rows|length }}</span></div>
+  {% if series.remote_chapter_rows %}
+  <div class="chapter-list">
     {% for chapter in series.remote_chapter_rows %}
-      <article class="chapter-row {% if chapter.downloaded %}is-downloaded{% endif %} {% if chapter.read %}is-read{% endif %}">
-        <div class="chapter-number"><span>Chapter</span><strong>{{ chapter.number }}</strong></div>
-        <div class="chapter-state">{% if chapter.read %}<span class="badge read-badge">Read</span>{% elif chapter.downloaded %}<span class="badge success">Unread</span>{% else %}<span class="badge">Not downloaded</span>{% endif %}{% if chapter.size %}<span class="muted">{{ format_bytes(chapter.size) }}</span>{% endif %}</div>
-        <div class="chapter-actions"><a class="button {% if not chapter.downloaded %}secondary{% endif %}" href="{{ url_for('chapter_read', series_path=series.path, chapter_id=chapter.key) }}">{{ 'Read' if chapter.downloaded else 'Download & read' }}</a>{% if chapter.downloaded %}<form method="post" action="{{ url_for('chapter_download', series_path=series.path, chapter_id=chapter.key) }}"><button class="button secondary">Refresh PDF</button></form>{% endif %}</div>
-      </article>
+    <article class="chapter-row {% if chapter.downloaded %}is-downloaded{% endif %} {% if chapter.read %}is-read{% endif %}">
+      <div class="chapter-number"><span>CH.</span><strong>{{ chapter.number }}</strong></div>
+      <div class="chapter-state">
+        {% if chapter.read %}<span class="badge read-badge">Read</span>{% elif chapter.downloaded %}<span class="badge success">Ready</span>{% else %}<span class="badge">Remote</span>{% endif %}
+        {% if chapter.size %}<small>{{ format_bytes(chapter.size) }}</small>{% endif %}
+      </div>
+      <div class="chapter-actions">
+        <a class="button {% if not chapter.downloaded %}secondary{% endif %}" href="{{ url_for('chapter_read', series_path=series.path, chapter_id=chapter.key) }}">{{ 'Read' if chapter.downloaded else 'Download & read' }}</a>
+        <form method="post" action="{{ url_for('chapter_client_download', series_path=series.path, chapter_id=chapter.key) }}">{{ csrf_field() }}<button class="secondary" type="submit">Download PDF</button></form>
+        {% if chapter.downloaded and owned_by_me %}<button class="danger ghost" type="button" data-dialog="delete-chapter-{{ loop.index }}">Delete</button>{% endif %}
+      </div>
+    </article>
+    {% if chapter.downloaded and owned_by_me %}
+    <dialog id="delete-chapter-{{ loop.index }}" class="confirm-dialog">
+      <form method="dialog" class="dialog-close-row"><button class="icon-button">×</button></form>
+      <span class="eyebrow">Shared file warning</span><h2>Delete chapter {{ chapter.number }}?</h2>
+      <p>This removes the PDF for every profile that has {{ series.title }} in their library.</p>
+      <div class="impact-list">{% for person in impact %}<span>{{ person.display_name }}{% if person.last_read_at %} · active reader{% endif %}</span>{% endfor %}</div>
+      <form method="post" action="{{ url_for('chapter_delete', series_path=series.path, chapter_id=chapter.key) }}">{{ csrf_field() }}<input type="hidden" name="confirm" value="yes"><button class="danger wide-button">Delete shared chapter PDF</button></form>
+    </dialog>
+    {% endif %}
     {% endfor %}
-  </div>{% else %}<div class="empty-state"><h3>No chapter list available</h3><p>Refresh this series to try again.</p></div>{% endif %}
+  </div>
+  {% else %}
+  <div class="empty-state"><h3>No chapter list available</h3><p>Refresh the series to retry the source.</p></div>
+  {% endif %}
 </section>
 
-<dialog id="remove-series" class="confirm-dialog"><form method="dialog" class="dialog-close-row"><button class="icon-button">×</button></form><h2>Remove {{ series.title }}?</h2><p>Archive keeps all PDFs and reading metadata so the series can be restored later.</p><div class="dialog-actions"><form method="post" action="{{ url_for('series_remove', series_path=series.path) }}"><input type="hidden" name="action" value="keep"><button class="button secondary">Archive and keep files</button></form><form method="post" action="{{ url_for('series_remove', series_path=series.path) }}"><input type="hidden" name="action" value="delete"><button class="button danger">Delete everything</button></form></div></dialog>
+{% if owned_by_me %}
+<dialog id="remove-series" class="confirm-dialog">
+  <form method="dialog" class="dialog-close-row"><button class="icon-button">×</button></form>
+  <span class="eyebrow">Library removal</span><h2>Remove {{ series.title }}?</h2>
+  <p><strong>Remove from my library</strong> keeps every PDF and does not affect {{ owners|length - 1 }} other profile{{ '' if owners|length - 1 == 1 else 's' }}.</p>
+  <form method="post" action="{{ url_for('series_remove', series_path=series.path) }}">{{ csrf_field() }}<input type="hidden" name="action" value="remove"><button class="secondary wide-button">Remove only from my library</button></form>
+  <hr>
+  <p><strong>Delete files for everyone</strong> removes the series folder, all PDFs, and every profile’s progress entry.</p>
+  <div class="impact-list">{% for person in impact %}<span>{{ person.display_name }} · {{ person.touched_count }} chapters opened</span>{% endfor %}</div>
+  <form method="post" action="{{ url_for('series_remove', series_path=series.path) }}" class="settings-form">{{ csrf_field() }}<input type="hidden" name="action" value="delete_files"><label><span>Type DELETE to confirm</span><input name="confirm_text" autocomplete="off"></label><button class="danger wide-button">Delete files for all profiles</button></form>
+</dialog>
+{% endif %}
 {% endblock %}
-{% block scripts %}<script>document.querySelector('[data-dialog="remove-series"]').addEventListener('click',()=>document.getElementById('remove-series').showModal());</script>{% endblock %}
+{% block scripts %}<script>document.querySelectorAll('[data-dialog]').forEach(button=>button.addEventListener('click',()=>document.getElementById(button.dataset.dialog)?.showModal()));</script>{% endblock %}

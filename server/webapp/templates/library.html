@@ -1,92 +1,38 @@
 {% extends 'base.html' %}
-{% block title %}Library · Manga Library{% endblock %}
+{% block title %}{{ space.name if space else current_profile.display_name ~ "'s library" }} · MangaBridge{% endblock %}
 {% block content %}
-<section class="dashboard-hero">
-  <div class="hero-copy">
-    <span class="eyebrow">Personal manga server</span>
-    <h1>Your library, downloads, and reading progress in one place.</h1>
-    <p>Discover series, keep PDFs current, and continue exactly where you left off.</p>
-    <form class="search-bar" method="get" action="{{ url_for('library_home') }}">
-      <input type="search" name="q" value="{{ q }}" placeholder="Search your library or discover a series" autocomplete="off">
-      <input type="hidden" name="sort" value="{{ sort }}">
-      <button type="submit">Search</button>
-    </form>
-  </div>
-  <div class="stat-grid">
-    <div class="stat-card"><span>Series</span><strong>{{ stats.series }}</strong></div>
-    <div class="stat-card"><span>PDF chapters</span><strong>{{ stats.pdfs }}</strong></div>
-    <div class="stat-card"><span>Unread</span><strong>{{ stats.unread }}</strong></div>
-    <div class="stat-card"><span>Storage</span><strong>{{ format_bytes(stats.bytes) }}</strong></div>
-    <div class="stat-card"><span>Monitored</span><strong>{{ stats.watched }}</strong></div>
-  </div>
+<section class="dashboard-hero manga-hero">
+  <div class="hero-ink"><span class="eyebrow">{{ 'Shared shelf' if mode == 'shared' else 'Personal shelf' }}</span><h1>{{ space.name if space else current_profile.display_name ~ "'s manga" }}</h1><p>{% if mode == 'shared' %}A live union of the accepted members’ libraries. PDFs are stored once and reading progress remains personal.{% else %}Your own series, your own progress, backed by one shared physical collection.{% endif %}</p></div>
+  <form class="search-bar ink-search" method="get" action="{{ url_for('shared_view', space_id=space.id) if space else url_for('library_home') }}"><input type="search" name="q" value="{{ q }}" placeholder="Search this shelf or discover a title"><button>Search</button></form>
+  <div class="stat-ribbon"><span><strong>{{ stats.series }}</strong> series</span><span><strong>{{ stats.pdfs }}</strong> chapters</span><span><strong>{{ stats.unread }}</strong> unread</span><span><strong>{{ format_bytes(stats.bytes) }}</strong> stored</span></div>
 </section>
+
+{% if mode == 'shared' %}
+<section class="shared-toolbar panel-cut">
+  <div class="member-stack">{% for member in members %}<span class="avatar" title="{{ member.display_name }} · {{ member.status }}">{{ member.display_name[:1]|upper }}</span>{% endfor %}</div>
+  {% if space.owner_id == current_profile.id %}
+  {% if invitable_profiles %}<form method="post" action="{{ url_for('shared_invite', space_id=space.id) }}" class="invite-form">{{ csrf_field() }}<select name="user_id">{% for profile in invitable_profiles %}<option value="{{ profile.id }}">{{ profile.display_name }}</option>{% endfor %}</select><button>Invite profile</button></form>{% else %}<span class="muted">Every profile has been invited.</span>{% endif %}
+  {% endif %}
+  {% if hidden_cards %}<details class="hidden-manager"><summary>{{ hidden_cards|length }} hidden</summary><div>{% for hidden in hidden_cards %}<form method="post" action="{{ url_for('shared_hide', space_id=space.id, series_path=hidden.path) }}">{{ csrf_field() }}<input type="hidden" name="hidden" value="0"><span>{{ hidden.title }}</span><button class="ghost">Show</button></form>{% endfor %}</div></details>{% endif %}
+  <form method="post" action="{{ url_for('shared_leave', space_id=space.id) }}">{{ csrf_field() }}<button class="secondary">{{ 'Delete shared view' if space.owner_id == current_profile.id else 'Leave shared view' }}</button></form>
+</section>
+{% endif %}
 
 {% if results %}
+<section class="section-block discovery-strip"><div class="section-heading"><div><span class="eyebrow">Source search</span><h2>Matches for “{{ q }}”</h2></div></div><div class="discover-grid">
+{% for item in results %}<article class="discover-card panel-cut"><div class="cover-frame">{% if item.meta_cover %}<img src="{{ item.meta_cover }}" alt="" loading="lazy">{% else %}<div class="cover-placeholder">?</div>{% endif %}</div><div class="discover-copy"><h3>{{ item.meta_title or item.title }}</h3><p class="muted">{{ item.title }}</p>{% if item.meta_description %}<p class="description clamp-3">{{ item.meta_description }}</p>{% endif %}<div class="fact-row"><span>Score <strong>{{ item.meta_score or '—' }}</strong></span><span>Chapters <strong>{{ item.meta_chapters or '—' }}</strong></span></div>{% if item.already_added %}<a class="button" href="{{ url_for('series_view', series_path=item.existing_path) }}">Open</a>{% else %}<form method="post" action="{{ url_for('library_add') }}">{{ csrf_field() }}<input type="hidden" name="title" value="{{ item.title }}"><input type="hidden" name="series_id" value="{{ item.series_id }}"><input type="hidden" name="slug" value="{{ item.slug }}"><input type="hidden" name="url" value="{{ item.url }}"><input type="hidden" name="anilist_id" value="{{ item.anilist_id or '' }}"><button>{{ 'Add to my library' if item.exists_globally else 'Add & create library entry' }}</button></form>{% endif %}</div></article>{% endfor %}
+</div></section>
+{% endif %}
+
 <section class="section-block">
-  <div class="section-heading"><div><span class="eyebrow">Discovery</span><h2>Search results</h2></div><span class="count-pill">{{ results|length }}</span></div>
-  <div class="discover-grid">
-    {% for item in results %}
-      <article class="discover-card">
-        <div class="cover-frame">{% if item.meta_cover %}<img src="{{ item.meta_cover }}" alt="cover" loading="lazy">{% else %}<div class="cover-placeholder">No cover</div>{% endif %}</div>
-        <div class="discover-copy">
-          <div class="card-title-row"><h3>{{ item.meta_title or item.title }}</h3>{% if item.meta_status %}<span class="badge">{{ item.meta_status|replace('_',' ')|title }}</span>{% endif %}</div>
-          <p class="muted">{{ item.title }}</p>
-          {% if item.meta_description %}<p class="description clamp-4">{{ item.meta_description }}</p>{% endif %}
-          <div class="fact-row"><span>Chapters <strong>{{ item.meta_chapters if item.meta_chapters is not none else '—' }}</strong></span><span>Score <strong>{{ item.meta_score if item.meta_score is not none else '—' }}</strong></span></div>
-          {% if item.meta_genres %}<div class="chips">{% for genre in item.meta_genres[:4] %}<span>{{ genre }}</span>{% endfor %}</div>{% endif %}
-          {% if item.already_added %}
-            <a class="button" href="{{ url_for('series_view', series_path=item.existing_path) }}">Open in library</a>
-          {% else %}
-            <form method="post" action="{{ url_for('library_add') }}">
-              <input type="hidden" name="title" value="{{ item.title }}"><input type="hidden" name="series_id" value="{{ item.series_id }}"><input type="hidden" name="slug" value="{{ item.slug }}"><input type="hidden" name="url" value="{{ item.url }}"><input type="hidden" name="anilist_id" value="{{ item.anilist_id or '' }}">
-              <button type="submit">Add to library</button>
-            </form>
-          {% endif %}
-        </div>
-      </article>
-    {% endfor %}
-  </div>
+  <div class="section-heading library-heading"><div><span class="eyebrow">{{ 'Shared collection' if mode == 'shared' else 'Your collection' }}</span><h2>{{ library|length }} series</h2></div>{% if mode == 'personal' %}<div class="sort-tabs"><a href="?sort=activity&q={{ q|urlencode }}" class="{{ 'active' if sort=='activity' }}">Recent</a><a href="?sort=unread&q={{ q|urlencode }}" class="{{ 'active' if sort=='unread' }}">Unread</a><a href="?sort=title&q={{ q|urlencode }}" class="{{ 'active' if sort=='title' }}">A–Z</a></div>{% endif %}</div>
+  {% if library %}<div class="library-grid">
+  {% for series in library %}<article class="library-card manga-card {% if series.pinned %}pinned{% endif %}">
+    <a class="library-cover" href="{{ url_for('series_view', series_path=series.path, shared=space.id if space else None) }}">{% if series.cover %}<img src="{{ series.cover }}" alt="{{ series.title }} cover" loading="lazy">{% else %}<div class="cover-placeholder">{{ series.title[:1] }}</div>{% endif %}<span class="chapter-stamp">{{ series.downloaded_count }} PDFs</span></a>
+    <div class="library-copy"><div class="card-title-row"><h3>{{ series.title }}</h3>{% if series.watch.enabled %}<span class="watch-dot" title="Monitored"></span>{% endif %}</div>
+    {% if series.owners %}<p class="owners">Added by {{ series.owners|join(', ') }}</p>{% endif %}
+    <div class="progress-line"><span style="width:{{ (series.read_count / series.downloaded_count * 100) if series.downloaded_count else 0 }}%"></span></div><div class="library-stats"><span>{{ series.unread_count }} unread</span><span>{{ series.missing_count }} missing</span></div>
+    <div class="card-actions">{% if series.continue_chapter is not none %}<a class="button" href="{{ url_for('chapter_read', series_path=series.path, chapter_id=chapter_key(series.continue_chapter)) }}">Continue {{ series.continue_chapter }}</a>{% else %}<a class="button secondary" href="{{ url_for('series_view', series_path=series.path) }}">Open</a>{% endif %}{% if mode == 'shared' %}<form method="post" action="{{ url_for('shared_hide', space_id=space.id, series_path=series.path) }}">{{ csrf_field() }}<input type="hidden" name="hidden" value="1"><button class="ghost">Hide</button></form>{% endif %}</div></div>
+  </article>{% endfor %}</div>{% else %}<div class="empty-state manga-empty"><span>空</span><h2>This shelf is empty</h2><p>{% if mode == 'shared' %}Accepted members have not added any visible series yet.{% else %}Search above or visit Explore to start building it.{% endif %}</p><a class="button" href="{{ url_for('explore_view') }}">Explore manga</a></div>{% endif %}
 </section>
-{% elif q %}<section class="empty-state"><h2>No search matches</h2><p>Try another title or spelling.</p></section>{% endif %}
-
-<div class="dashboard-layout">
-  <section class="section-block dashboard-main">
-    <div class="section-heading library-toolbar">
-      <div><span class="eyebrow">Collection</span><h2>Library</h2></div>
-      <form method="get" class="sort-form">
-        {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
-        <label>Sort<select name="sort" onchange="this.form.submit()"><option value="activity" {% if sort=='activity' %}selected{% endif %}>Recent activity</option><option value="unread" {% if sort=='unread' %}selected{% endif %}>Unread</option><option value="latest" {% if sort=='latest' %}selected{% endif %}>Latest chapter</option><option value="title" {% if sort=='title' %}selected{% endif %}>Title</option></select></label>
-      </form>
-    </div>
-    {% if library %}
-      <div class="library-grid ultimate-grid">
-        {% for series in library %}
-          <article class="library-card enhanced {% if series.pinned %}is-pinned{% endif %}">
-            <a class="library-cover" href="{{ url_for('series_view', series_path=series.path) }}">{% if series.cover %}<img src="{{ series.cover }}" alt="cover" loading="lazy">{% else %}<div class="cover-placeholder">{{ series.title[:1] }}</div>{% endif %}{% if series.watch.enabled %}<span class="watch-dot"></span>{% endif %}</a>
-            <div class="library-copy">
-              <div class="card-title-row"><h3><a href="{{ url_for('series_view', series_path=series.path) }}">{{ series.title }}</a></h3><form method="post" action="{{ url_for('series_pin', series_path=series.path) }}"><button class="icon-button pin-button" type="submit" title="{{ 'Unpin' if series.pinned else 'Pin' }}">{{ '★' if series.pinned else '☆' }}</button></form></div>
-              <div class="progress-summary"><div class="progress-track"><span style="width: {{ (series.read_count / series.downloaded_count * 100) if series.downloaded_count else 0 }}%"></span></div><small>{{ series.read_count }} read · {{ series.unread_count }} unread · {{ series.missing_count }} missing</small></div>
-              <div class="library-stats"><span><strong>{{ series.downloaded_count }}</strong> PDFs</span><span><strong>{{ format_bytes(series.downloaded_size) }}</strong></span>{% if series.remote_latest is not none %}<span>Latest <strong>{{ series.remote_latest }}</strong></span>{% endif %}</div>
-              <div class="card-actions">
-                {% if series.continue_chapter is not none %}<a class="button" href="{{ url_for('chapter_read', series_path=series.path, chapter_id=chapter_key(series.continue_chapter)) }}">Continue ch. {{ series.continue_chapter }}</a>{% else %}<a class="button" href="{{ url_for('series_view', series_path=series.path) }}">Open series</a>{% endif %}
-                <a class="button secondary" href="{{ url_for('series_view', series_path=series.path) }}">Manage</a>
-                <button class="button danger ghost" type="button" data-dialog="remove-{{ loop.index }}">Remove</button>
-              </div>
-            </div>
-          </article>
-          <dialog id="remove-{{ loop.index }}" class="confirm-dialog"><form method="dialog" class="dialog-close-row"><button class="icon-button">×</button></form><h2>Remove {{ series.title }}?</h2><p>Archive keeps the PDF files and lets you restore the series later.</p><div class="dialog-actions"><form method="post" action="{{ url_for('series_remove', series_path=series.path) }}"><input type="hidden" name="action" value="keep"><button class="button secondary">Archive and keep files</button></form><form method="post" action="{{ url_for('series_remove', series_path=series.path) }}"><input type="hidden" name="action" value="delete"><button class="button danger">Delete everything</button></form></div></dialog>
-        {% endfor %}
-      </div>
-    {% else %}<div class="empty-state"><h2>No visible series</h2><p>Add a title above or check the Archive.</p></div>{% endif %}
-  </section>
-
-  <aside class="section-block activity-rail">
-    <div class="section-heading"><div><span class="eyebrow">Updates</span><h2>Recent activity</h2></div><a class="text-link" href="{{ url_for('activity_view') }}">View all</a></div>
-    <div class="event-list">
-      {% for event in events %}<article class="event-item"><span class="event-dot {{ event.type }}"></span><div><strong>{{ event.title }}</strong>{% if event.detail %}<p>{{ event.detail }}</p>{% endif %}<small>{{ event.created_at }}</small></div></article>{% else %}<p class="muted">Activity will appear here as you add, read, and download series.</p>{% endfor %}
-    </div>
-    <div class="rail-actions"><a class="button secondary" href="{{ url_for('archive_view') }}">Open Archive</a><a class="button secondary" href="{{ url_for('library_export') }}">Export library JSON</a></div>
-  </aside>
-</div>
 {% endblock %}
-{% block scripts %}<script>document.querySelectorAll('[data-dialog]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.dialog).showModal()));</script>{% endblock %}

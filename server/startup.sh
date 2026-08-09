@@ -36,7 +36,7 @@ export PATH="$VENV_DIR/bin:$PATH"
 export PYTHONPATH="$APP_DIR:${PYTHONPATH:-}"
 cd "$APP_DIR"
 
-echo "Starting MangaDL on $HOST:$PORT"
+echo "Starting MangaBridge v2 on $HOST:$PORT"
 exec gunicorn \
   --bind "$HOST:$PORT" \
   --workers 1 \

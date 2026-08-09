@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Set up MangaBridge{% endblock %}
+{% block page_class %}auth-page{% endblock %}
+{% block content %}
+<section class="auth-card panel-cut">
+  <div class="auth-art"><span>漫画</span><h1>Welcome to MangaBridge</h1><p>Create the first profile. Your existing library and reading history will be assigned to it automatically.</p></div>
+  <form method="post" class="auth-form">{{ csrf_field() }}
+    <label><span>Username</span><input name="username" required autocomplete="username" placeholder="reader-one"></label>
+    <label><span>Display name</span><input name="display_name" required placeholder="Stefano"></label>
+    <label><span>Password <em>optional</em></span><input type="password" name="password" autocomplete="new-password"><small>Leave blank for one-click profile access on your trusted LAN.</small></label>
+    <button class="button primary wide-button">Create first profile</button>
+  </form>
+</section>
+{% endblock %}

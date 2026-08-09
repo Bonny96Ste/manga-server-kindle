@@ -1,38 +1,44 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="ink">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark light">
-  <title>{% block title %}Manga Library{% endblock %}</title>
+  <meta name="color-scheme" content="dark">
+  <title>{% block title %}MangaBridge{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body{% if page_background %} style="--page-banner: url('{{ page_background }}');"{% endif %}>
+  <div class="site-backdrop" aria-hidden="true"></div>
+  {% if current_profile %}
   <header class="topbar">
-    <a class="brand" href="{{ url_for('library_home') }}"><span class="brand-mark">M</span><span>Manga Library</span></a>
-    <nav class="main-nav">
-      <a href="{{ url_for('library_home') }}">Library</a>
-      <a href="{{ url_for('activity_view') }}">Activity</a>
-      <a href="{{ url_for('archive_view') }}">Archive</a>
-      <button type="button" class="icon-button theme-button" id="theme-toggle" title="Toggle theme">◐</button>
+    <a class="brand" href="{{ url_for('library_home') }}">
+      <span class="brand-kana">漫画</span>
+      <span><strong>MangaBridge</strong><small>library server</small></span>
+    </a>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a class="nav-link {% if request.endpoint in ['library_home','series_view'] and not request.args.get('shared') %}active{% endif %}" href="{{ url_for('library_home') }}">My library</a>
+      {% for shared in shared_spaces if shared.status == 'accepted' %}
+        <a class="nav-link {% if request.view_args and request.view_args.get('space_id') == shared.id %}active{% endif %}" href="{{ url_for('shared_view', space_id=shared.id) }}">{{ shared.name }}</a>
+      {% endfor %}
+      <a class="nav-link {% if request.endpoint == 'explore_view' %}active{% endif %}" href="{{ url_for('explore_view') }}">Explore</a>
+      <a class="nav-link {% if request.endpoint == 'activity_view' %}active{% endif %}" href="{{ url_for('activity_view') }}">Activity</a>
     </nav>
+    <div class="profile-menu">
+      <a class="profile-chip" href="{{ url_for('profiles_view') }}">
+        <span class="avatar" data-seed="{{ current_profile.avatar_seed }}">{{ current_profile.display_name[:1]|upper }}</span>
+        <span>{{ current_profile.display_name }}</span>
+      </a>
+      <form method="post" action="{{ url_for('logout') }}">{{ csrf_field() }}<button class="icon-button" title="Sign out">↪</button></form>
+    </div>
   </header>
+  {% endif %}
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}<div class="flash-stack">{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}
   {% endwith %}
 
   <main class="page {% block page_class %}{% endblock %}">{% block content %}{% endblock %}</main>
-  <script>
-    const root = document.documentElement;
-    const savedTheme = localStorage.getItem('mangadl-theme') || 'dark';
-    root.dataset.theme = savedTheme;
-    document.getElementById('theme-toggle')?.addEventListener('click', () => {
-      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('mangadl-theme', root.dataset.theme);
-    });
-  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

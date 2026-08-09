@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Profiles & sharing · MangaBridge{% endblock %}
+{% block content %}
+<section class="page-heading manga-heading"><div><span class="eyebrow">Household</span><h1>Profiles & shared libraries</h1><p>Profiles keep reading progress separate while the physical PDF collection remains deduplicated.</p></div></section>
+<div class="settings-grid">
+  <section class="panel panel-cut">
+    <div class="section-heading"><div><span class="eyebrow">Current profile</span><h2>{{ current.display_name }}</h2></div></div>
+    <form method="post" action="{{ url_for('profile_update') }}" class="settings-form">{{ csrf_field() }}
+      <label><span>Display name</span><input name="display_name" value="{{ current.display_name }}" required></label>
+      <label><span>Password action</span><select name="password_mode"><option value="keep">Keep current password</option><option value="change">Set a new password</option><option value="remove">Remove password</option></select></label>
+      <label><span>New password</span><input type="password" name="password" placeholder="Used only when setting a new password"></label>
+      <button>Save profile</button>
+    </form>
+  </section>
+  <section class="panel panel-cut">
+    <div class="section-heading"><div><span class="eyebrow">New reader</span><h2>Create profile</h2></div></div>
+    <form method="post" action="{{ url_for('profile_create') }}" class="settings-form">{{ csrf_field() }}
+      <label><span>Username</span><input name="username" required></label>
+      <label><span>Display name</span><input name="display_name" required></label>
+      <label><span>Password <em>optional</em></span><input type="password" name="password"></label>
+      <button>Create profile</button>
+    </form>
+  </section>
+</div>
+
+<section class="section-block">
+  <div class="section-heading"><div><span class="eyebrow">Readers</span><h2>Available profiles</h2></div><span class="count-pill">{{ profiles|length }}</span></div>
+  <div class="people-row">{% for profile in profiles %}<article class="person-card"><span class="avatar avatar-large" data-seed="{{ profile.avatar_seed }}">{{ profile.display_name[:1]|upper }}</span><div><strong>{{ profile.display_name }}</strong><small>@{{ profile.username }} · {{ 'Password protected' if profile.has_password else 'No password' }}</small></div></article>{% endfor %}</div>
+</section>
+
+<section class="section-block">
+  <div class="section-heading"><div><span class="eyebrow">Shared mode</span><h2>Shared library views</h2></div></div>
+  <form method="post" action="{{ url_for('shared_create') }}" class="inline-create panel">{{ csrf_field() }}<input name="name" placeholder="e.g. Family shelf" required><button>Create shared library</button></form>
+  <div class="shared-list">
+    {% for space in spaces %}
+      <article class="shared-card panel-cut">
+        <div><span class="badge {{ 'success' if space.status == 'accepted' else 'warning' }}">{{ space.status }}</span><h3>{{ space.name }}</h3><p>Owned by {{ space.owner_name }} · {{ space.member_count }} accepted members</p></div>
+        {% if space.status == 'pending' %}<div class="card-actions"><form method="post" action="{{ url_for('shared_respond', space_id=space.id) }}">{{ csrf_field() }}<input type="hidden" name="action" value="accept"><button>Accept</button></form><form method="post" action="{{ url_for('shared_respond', space_id=space.id) }}">{{ csrf_field() }}<input type="hidden" name="action" value="decline"><button class="secondary">Decline</button></form></div>{% else %}<a class="button secondary" href="{{ url_for('shared_view', space_id=space.id) }}">Open shared view</a>{% endif %}
+      </article>
+    {% else %}<div class="empty-state"><h3>No shared libraries yet</h3><p>Create one, invite profiles, and each invitee can approve access from this page.</p></div>{% endfor %}
+  </div>
+</section>
+{% endblock %}
