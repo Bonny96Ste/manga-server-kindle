@@ -1,0 +1,24 @@
+MangaBridge Kindle changelog
+============================
+
+v1.1.1
+------
+- Progress continuation is now canonical per series; each series menu has its own Continue chapter action and page indicator.
+- Retained the global Continue latest shortcut for the most recently read series.
+- Fixed hardware forward-page handling by explicitly passing normal turns to KOReader and consuming only the extra forward press on the final page.
+- Fixed next-chapter continuation for local chapters and the missing-chapter download prompt.
+- Simplified KUAL to one direct MangaBridge launch entry and removed alternate/debug startup scripts from the package.
+- Local progress format moves to v3 and automatically derives per-series continuation pointers from existing v1.1.0 chapter records.
+
+v1.1.0
+------
+- Added per-profile local reading progress in /mnt/us/mangabridge/progress.json.
+- Added page-aware Continue reading in the MangaBridge menu and library.
+- Added chapter-row progress/read indicators.
+- Added profile-aware server sync via X-MangaBridge-Profile.
+- Added manual progress sync and automatic sync while Wi-Fi is already connected.
+- Added cross-device resume with 1-based KOReader / 0-based web page translation on Server v2.3.0.
+- Added automatic next-chapter continuation after a forward press on the final page.
+- Added download confirmation when the next chapter is not stored locally.
+- Added profile-specific server cache files so shared Kindles do not mix profile libraries.
+- Retained v1.0.9 high-resolution sleep-cover behavior.

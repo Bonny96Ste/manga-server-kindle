@@ -1,0 +1,45 @@
+MangaBridge Kindle v1.1.1 - progress sync and chapter continuation
+
+SAFE UPDATE
+===========
+This archive does not contain /mnt/us/mangabridge/config.lua.
+Extract it into the Kindle USB root and allow replacement of existing files.
+Your server URL, token, downloaded chapters, cached covers and existing data remain intact.
+
+Installation
+------------
+1. Update the server to MangaBridge Server v2.3.0 or later for profile progress sync.
+2. Connect the Kindle by USB.
+3. Extract this archive directly into the Kindle root and replace existing MangaBridge files.
+4. Verify that these files exist:
+     /mnt/us/koreader/plugins/mangabridge.koplugin/main.lua
+     /mnt/us/extensions/mangabridge/menu.json
+5. Safely eject the Kindle.
+6. Exit KOReader completely if it is running, then select the single MangaBridge entry in KUAL.
+7. Open MangaBridge > Connection settings and set "MangaBridge profile username".
+8. Test the connection. The result should name the selected server profile.
+9. Refresh the library once.
+
+What changed
+------------
+- Saves chapter/page progress locally in /mnt/us/mangabridge/progress.json.
+- Adds a per-series Continue chapter action while keeping the global Continue latest shortcut.
+- Shows page progress/read state beside chapters.
+- Syncs pending progress with the configured MangaBridge server profile.
+- Keeps local progress separated by profile username when one Kindle is shared.
+- On the final page, the next forward-page press opens the next local chapter; normal forward presses are passed directly to KOReader.
+- If the next chapter is missing locally, MangaBridge asks before downloading it.
+- Automatic progress sync only runs when Wi-Fi is already connected.
+- Existing high-resolution cover behavior from v1.0.9 is retained.
+
+Compatibility
+-------------
+MangaBridge Server v2.3.0 adds the per-Kindle profile header and progress endpoint.
+Older server releases can still serve chapters to this client, but progress sync will fail
+until the server is upgraded. The Kindle API remains version 1.
+
+The archive does not delete or replace:
+- /mnt/us/mangabridge/config.lua
+- /mnt/us/mangabridge/library
+- /mnt/us/mangabridge/progress.json
+- downloaded manga chapters

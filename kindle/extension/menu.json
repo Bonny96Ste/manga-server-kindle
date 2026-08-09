@@ -3,58 +3,10 @@
     {
       "name": "MangaBridge",
       "priority": 20,
-      "items": [
-        {
-          "name": "Launch MangaBridge",
-          "priority": 10,
-          "action": "/mnt/us/extensions/mangabridge/bin/launch.sh",
-          "exitmenu": true,
-          "status": false,
-          "internal": "status Starting MangaBridge . . ."
-        },
-        {
-          "name": "Launch MangaBridge (fallback)",
-          "priority": 11,
-          "action": "/mnt/us/extensions/mangabridge/bin/launch-framework-stop.sh",
-          "exitmenu": true,
-          "status": false,
-          "internal": "status Starting MangaBridge without the Kindle framework . . ."
-        },
-        {
-          "name": "Test KOReader without MangaBridge",
-          "priority": 12,
-          "action": "/mnt/us/extensions/mangabridge/bin/launch-koreader-only.sh",
-          "exitmenu": true,
-          "status": false,
-          "internal": "status Starting KOReader with MangaBridge disabled . . ."
-        },
-        {
-          "name": "Repair MangaBridge files",
-          "priority": 20,
-          "action": "/mnt/us/extensions/mangabridge/bin/install.sh",
-          "exitmenu": false,
-          "status": false,
-          "internal": "status Repairing MangaBridge . . ."
-        },
-        {
-          "name": "Write diagnostics report",
-          "priority": 30,
-          "action": "/mnt/us/extensions/mangabridge/bin/diagnostics.sh",
-          "exitmenu": false
-        },
-        {
-          "name": "Clear metadata cache",
-          "priority": 40,
-          "action": "/mnt/us/extensions/mangabridge/bin/clear-cache.sh",
-          "exitmenu": false
-        },
-        {
-          "name": "Remove plugin (keep downloads)",
-          "priority": 90,
-          "action": "/mnt/us/extensions/mangabridge/bin/uninstall.sh",
-          "exitmenu": false
-        }
-      ]
+      "action": "/mnt/us/extensions/mangabridge/bin/launch.sh",
+      "exitmenu": true,
+      "status": false,
+      "internal": "status Starting MangaBridge . . ."
     }
   ]
 }

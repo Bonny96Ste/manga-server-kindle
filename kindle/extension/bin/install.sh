@@ -8,7 +8,7 @@ PAYLOAD_DIR="$EXT_DIR/payload/mangabridge.koplugin"
 STATUS_FILE="$DATA_DIR/status.txt"
 INSTALL_LOG="$DATA_DIR/install.log"
 
-mkdir -p "$DATA_DIR" "$DATA_DIR/library" "$DATA_DIR/cache" 2>/dev/null
+mkdir -p "$DATA_DIR" "$DATA_DIR/library" "$DATA_DIR/cache" "$DATA_DIR/covers" 2>/dev/null
 
 # Capture all installer output where it can be read over USB.
 exec >> "$INSTALL_LOG" 2>&1
